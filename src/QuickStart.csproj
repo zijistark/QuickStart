@@ -43,4 +43,5 @@
     <PackageReference Include="Bannerlord.ButterLib" Version="1.0.18" IncludeAssets="compile" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" PrivateAssets="All" />
   </ItemGroup>
+
 </Project>

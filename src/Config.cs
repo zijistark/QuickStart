@@ -6,6 +6,7 @@
         internal static bool SkipFaceGenStage { get; set; } = true;
         internal static bool SkipGenericStage { get; set; } = true;
         internal static bool PromptForClanName { get; set; } = false;
+        internal static bool OpenBannerEditor { get; set; } = false;
 
         internal static void CopyFrom(McmSettings settings)
         {
@@ -13,14 +14,16 @@
             SkipFaceGenStage  = settings.SkipFaceGenStage;
             SkipGenericStage  = settings.SkipGenericStage;
             PromptForClanName = settings.PromptForClanName;
+            OpenBannerEditor  = settings.OpenBannerEditor;
         }
 
-        internal static string ToMultiLineString()
+        internal static string ToDebugString()
         {
             return $"{nameof(SkipCultureStage)}  = {SkipCultureStage}\n" +
                    $"{nameof(SkipFaceGenStage)}  = {SkipFaceGenStage}\n" +
                    $"{nameof(SkipGenericStage)}  = {SkipGenericStage}\n" +
-                   $"{nameof(PromptForClanName)} = {PromptForClanName}";
+                   $"{nameof(PromptForClanName)} = {PromptForClanName}\n" +
+                   $"{nameof(OpenBannerEditor)}  = {OpenBannerEditor}";
         }
     }
 }

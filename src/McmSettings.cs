@@ -27,6 +27,10 @@ namespace QuickStart
         [SettingPropertyGroup("Settings")]
         public bool PromptForClanName { get; set; } = Config.PromptForClanName;
 
+        [SettingPropertyBool("Auto-Open Banner Editor", HintText = OpenBannerEditor_Hint, RequireRestart = false, Order = 4)]
+        [SettingPropertyGroup("Settings")]
+        public bool OpenBannerEditor { get; set; } = Config.OpenBannerEditor;
+
         private const string SkipCultureStage_Hint = "Skip this menu. A random culture will be picked. [ DEFAULT: ON ]";
 
         private const string SkipFaceGenStage_Hint = "Skip this menu. Character will use default slider values. [ DEFAULT: ON ]";
@@ -34,7 +38,10 @@ namespace QuickStart
         private const string SkipGenericStage_Hint = "Skip these menus. Random valid backstory menu options will be chosen. If"
             + " using a mod that adds more start options from which you want to select, then disable this. [ DEFAULT: ON ]";
 
-        private const string PromptForClanName_Hint = "Once you're on the map, prompt for your clan's name. Otherwise, it will"
-            + " default to 'Playerland' until/if you change it in the Clan Screen. [ DEFAULT: OFF ]";
+        private const string PromptForClanName_Hint = "At start, prompt for your clan's name. Otherwise, it will default to"
+            + " 'Playerclan' until/if you care to change it in the Clan Screen. [ DEFAULT: OFF ]";
+
+        private const string OpenBannerEditor_Hint = "At start, automatically open the Banner Editor. Note that you can simply"
+            + " hit the key 'B' (by default) to open it at any time. [ DEFAULT: OFF ]";
     }
 }

@@ -5,6 +5,7 @@ using HarmonyLib;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using System;
 using System.ComponentModel;
 using System.Linq;
 
@@ -18,27 +19,19 @@ using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.Localization;
-using System;
+using TaleWorlds.CampaignSystem.GameState;
 
 namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
         public static string Version => "1.0.0";
-        
+
         public static string Name => typeof(SubModule).Namespace;
-        
+
         public static string DisplayName => "Campaign QuickStart";
-        
+
         public static string HarmonyDomain => "com.zijistark.bannerlord." + Name.ToLower();
-
-        private static Color SignatureTextColor => Color.FromUint(0x00F16D26);
-
-        internal static SubModule Instance { get; set; } = default!;
-
-        private static ILogger Log { get; set; } = default!;
-
-        private bool _hasLoaded;
 
         protected override void OnSubModuleLoad()
         {
@@ -63,18 +56,18 @@ namespace QuickStart
 
                 if (McmSettings.Instance is { } settings)
                 {
-                    Log.LogInformation("MCM settings instance found!");
+                    Log.LogInformation("MCM settings instance found.");
 
                     // Copy current settings to master config
-                    Config.CopyFrom(McmSettings.Instance!);
+                    Config.CopyFrom(settings);
 
                     // Register for settings property-changed events
-                    McmSettings.Instance!.PropertyChanged += McmSettings_OnPropertyChanged;
+                    settings.PropertyChanged += McmSettings_OnPropertyChanged;
                 }
                 else
-                    Log.LogInformation("MCM settings instance NOT found! Using defaults.");
+                    Log.LogInformation("MCM settings instance NOT found. Using defaults.");
 
-                Log.LogInformation($"Configuration:\n{Config.ToMultiLineString()}");
+                Log.LogInformation($"Configuration:\n{Config.ToDebugString()}");
                 Log.LogInformation($"Loaded {Name}!");
                 InformationManager.DisplayMessage(new InformationMessage($"Loaded {DisplayName}", SignatureTextColor));
             }
@@ -85,7 +78,7 @@ namespace QuickStart
             if (sender is McmSettings settings && args.PropertyName == McmSettings.SaveTriggered)
             {
                 Config.CopyFrom(settings);
-                Log.LogInformation($"MCM triggered save of settings. New configuration:\n{Config.ToMultiLineString()}");
+                Log.LogInformation($"MCM triggered save of settings. New configuration:\n{Config.ToDebugString()}");
             }
         }
 
@@ -96,18 +89,24 @@ namespace QuickStart
 
             if (Config.SkipCultureStage)
                 SkipCultureStage(state);
+            else
+                Log.LogInformation("Culture selection stage is now under manual control.");
         }
 
         internal void OnFaceGenStage(CharacterCreationState state)
         {
             if (Config.SkipFaceGenStage)
                 SkipFaceGenStage(state);
+            else
+                Log.LogInformation("Face generator stage is now under manual control.");
         }
 
         internal void OnGenericStage(CharacterCreationState state)
         {
             if (Config.SkipGenericStage)
                 SkipGenericStage(state);
+            else
+                Log.LogInformation("Generic stage is now under manual control.");
         }
 
         internal void OnReviewStage(CharacterCreationState state) => SkipFinalStages(state);
@@ -131,6 +130,9 @@ namespace QuickStart
         {
             Log.LogInformation("Skipping face generator stage...");
             state.NextStage();
+            // MAYBE-TODO: Skipping this quickly seems to always result in the same bald man (haven't tried a woman),
+            //             which is not the actual default for slider settings. It'd be nice to be able to use a
+            //             potentially configured BodyProperties key.
         }
 
         private void SkipGenericStage(CharacterCreationState state)
@@ -152,13 +154,17 @@ namespace QuickStart
 
         private void SkipFinalStages(CharacterCreationState state)
         {
-            Log.LogInformation("Skipping rest of charaction creation stages...");
-
             if (state.CurrentStage is CharacterCreationReviewStage)
+            {
+                Log.LogInformation("Skipping review stage...");
                 state.NextStage();
+            }
 
             if (state.CurrentStage is CharacterCreationOptionsStage)
+            {
+                Log.LogInformation("Skipping campaign options stage...");
                 state.NextStage();
+            }
 
             Log.LogInformation("Skipping tutorial phase...");
 
@@ -168,51 +174,93 @@ namespace QuickStart
                 TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
             }
 
-            DisableElderBrother(isFirst: false); // Doing it again at the end for good measure
-
+            DisableElderBrother(isFirst: false); // Do it again at the end for good measure
             StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
+            ChangeClanName(null);
 
-            var startSettlement = Settlement.Find("town_EW2");
-
-            if (startSettlement is not null && GameStateManager.Current.ActiveState is MapState mapState)
+            if (GameStateManager.Current.ActiveState is not MapState)
             {
-                MobileParty.MainParty.Position2D = startSettlement.GatePosition;
-                mapState.Handler.TeleportCameraToMainParty();
+                Log.LogError("Completed tutorial phase, but this did not result in a MapState! Canceling further automation features.");
+                return;
             }
+
+            TeleportPlayerToSettlement();
 
             if (Config.PromptForClanName)
-            {
-                InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=JJiKk4ow}Select your family name: ", null).ToString(),
-                                                                       string.Empty,
-                                                                       true,
-                                                                       false,
-                                                                       GameTexts.FindText("str_done", null).ToString(),
-                                                                       null,
-                                                                       new Action<string>(OnChangeClanNameDone),
-                                                                       null,
-                                                                       false,
-                                                                       new Func<string, bool>(IsNewClanNameApplicable),
-                                                                       ""), false);
-            }
+                PromptForClanName();
+
+            if (Config.OpenBannerEditor)
+                OpenBannerEditor();
         }
 
-        private static bool IsNewClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
-
-        private static void OnChangeClanNameDone(string txt)
-        {
-            var name = new TextObject(txt ?? string.Empty);
-            Clan.PlayerClan.InitializeClan(name, name, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
-        }
-
-        private void DisableElderBrother(bool isFirst = true)
+        private static void DisableElderBrother(bool isFirst = true)
         {
             var brother = (Hero)AccessTools.Property(typeof(StoryModeHeroes), "ElderBrother").GetValue(null);
-            
+
             if (isFirst)
                 PartyBase.MainParty.MemberRoster.RemoveTroop(brother.CharacterObject, 1);
-            
+
             brother.ChangeState(Hero.CharacterStates.Disabled);
             brother.Clan = CampaignData.NeutralFaction;
         }
+
+        private static void TeleportPlayerToSettlement()
+        {
+            foreach (var stringId in StartSettlementsToTry)
+            {
+                var settlement = Settlement.Find(stringId);
+
+                if (settlement is not null)
+                {
+                    MobileParty.MainParty.Position2D = settlement.GatePosition;
+                    ((MapState)GameStateManager.Current.ActiveState).Handler.TeleportCameraToMainParty();
+                    break;
+                }
+            }
+        }
+
+        private static void ChangeClanName(string? name)
+        {
+            var txtName = new TextObject(name ?? DefaultPlayerClanName);
+            Clan.PlayerClan.InitializeClan(txtName, txtName, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
+        }
+
+        private static void PromptForClanName()
+        {
+            InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=JJiKk4ow}Select your family name: ").ToString(),
+                                                                   string.Empty,
+                                                                   true,
+                                                                   false,
+                                                                   GameTexts.FindText("str_done", null).ToString(),
+                                                                   null,
+                                                                   new Action<string>(ChangeClanName),
+                                                                   null,
+                                                                   false,
+                                                                   new Func<string, bool>(IsClanNameApplicable),
+                                                                   ""), false);
+        }
+
+        private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
+
+        private static void OpenBannerEditor() => Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
+
+        /* Non-Public Data */
+
+        private static readonly Color SignatureTextColor = Color.FromUint(0x00F16D26);
+
+        private const string DefaultPlayerClanName = "Playerclan";
+
+        private static readonly string[] StartSettlementsToTry = new[]
+        {
+            "town_EN1", // Epicrotea
+            "town_B1", // Marunath
+            "town_EW2", // Zeonica
+        };
+
+        private static ILogger Log { get; set; } = default!;
+
+        internal static SubModule Instance { get; private set; } = default!;
+
+        private bool _hasLoaded;
     }
 }

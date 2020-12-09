@@ -1,44 +1,54 @@
 ﻿using Bannerlord.ButterLib.Common.Extensions;
 
+using HarmonyLib;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using System.ComponentModel;
 using System.Linq;
 
-using StoryMode;
+using StoryMode.Behaviors;
 using StoryMode.CharacterCreationSystem;
+using StoryMode.StoryModeObjects;
+using StoryMode.StoryModePhases;
 
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
-using HarmonyLib;
-using StoryMode.StoryModeObjects;
-using StoryMode.Behaviors;
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.Localization;
+using System;
 
 namespace QuickStart
 {
-    public class SubModule : MBSubModuleBase
+    public sealed class SubModule : MBSubModuleBase
     {
         public static string Version => "1.0.0";
+        
         public static string Name => typeof(SubModule).Namespace;
+        
         public static string DisplayName => "Campaign QuickStart";
+        
         public static string HarmonyDomain => "com.zijistark.bannerlord." + Name.ToLower();
 
-        private static readonly Color SignatureTextColor = Color.FromUint(0x00F16D26);
+        private static Color SignatureTextColor => Color.FromUint(0x00F16D26);
+
+        internal static SubModule Instance { get; set; } = default!;
 
         private static ILogger Log { get; set; } = default!;
 
-        private static Config _config = new Config();
-
         private bool _hasLoaded;
-        private WaitStage _waitStage = WaitStage.None;
 
         protected override void OnSubModuleLoad()
         {
             base.OnSubModuleLoad();
+            Instance = this;
+            this.AddSerilogLoggerProvider($"{Name}.log", new[] { $"{Name}.*" });
             new Harmony(HarmonyDomain).PatchAll();
         }
+
+        protected override void OnSubModuleUnloaded() => Log.LogInformation($"Unloaded {Name}!");
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
         {
@@ -47,118 +57,102 @@ namespace QuickStart
             if (!_hasLoaded)
             {
                 _hasLoaded = true;
+
                 Log = this.GetServiceProvider().GetRequiredService<ILogger<SubModule>>();
-                Log.LogInformation("Loaded {module}", Name);
+                Log.LogInformation($"Loading {Name}...");
+
+                if (McmSettings.Instance is { } settings)
+                {
+                    Log.LogInformation("MCM settings instance found!");
+
+                    // Copy current settings to master config
+                    Config.CopyFrom(McmSettings.Instance!);
+
+                    // Register for settings property-changed events
+                    McmSettings.Instance!.PropertyChanged += McmSettings_OnPropertyChanged;
+                }
+                else
+                    Log.LogInformation("MCM settings instance NOT found! Using defaults.");
+
+                Log.LogInformation($"Configuration:\n{Config.ToMultiLineString()}");
+                Log.LogInformation($"Loaded {Name}!");
                 InformationManager.DisplayMessage(new InformationMessage($"Loaded {DisplayName}", SignatureTextColor));
             }
         }
 
-        public override void OnNewGameCreated(Game game, object initializerObject)
+        private static void McmSettings_OnPropertyChanged(object sender, PropertyChangedEventArgs args)
         {
-            if (game.GameType is not CampaignStoryMode)
-                return;
-
-            _waitStage = WaitStage.Culture;
-        }
-
-        private class Config
-        {
-            internal bool ShowCultureSelect { get; set; }
-            internal bool ShowFaceGen { get; set; } = true;
-        }
-
-        protected override void OnApplicationTick(float dt)
-        {
-            base.OnApplicationTick(dt);
-
-            if (_waitStage != WaitStage.None && GameStateManager.Current.ActiveState is CharacterCreationState state)
+            if (sender is McmSettings settings && args.PropertyName == McmSettings.SaveTriggered)
             {
-                if (_waitStage == WaitStage.Culture)
-                {
-                    SkipStart();
-
-                    if (_config.ShowCultureSelect)
-                    {
-                        _waitStage = WaitStage.FaceGen;
-                        return;
-                    }
-
-                    SkipCultureSelect(state);
-
-                    if (_config.ShowFaceGen)
-                    {
-                        _waitStage = WaitStage.Generic;
-                        return;
-                    }
-
-                    SkipFaceGen(state);
-                    SkipFinal(state);
-                }
-                else if (_waitStage == WaitStage.FaceGen && state.CurrentStage is CharacterCreationFaceGeneratorStage)
-                {
-                    if (_config.ShowFaceGen)
-                    {
-                        _waitStage = WaitStage.Generic;
-                        return;
-                    }
-
-                    SkipFaceGen(state);
-                    SkipFinal(state);
-                }
-                else if (_waitStage == WaitStage.Generic && state.CurrentStage is CharacterCreationGenericStage)
-                    SkipFinal(state);
+                Config.CopyFrom(settings);
+                Log.LogInformation($"MCM triggered save of settings. New configuration:\n{Config.ToMultiLineString()}");
             }
         }
 
-        private void SkipStart()
+        internal void OnCultureStage(CharacterCreationState state)
         {
-            var brother = (Hero)AccessTools.PropertyGetter(typeof(StoryModeHeroes), "ElderBrother").Invoke(null, null);
-            PartyBase.MainParty.MemberRoster.RemoveTroop(brother.CharacterObject, 1);
-            brother.ChangeState(Hero.CharacterStates.Disabled);
+            DisableElderBrother();
             TrainingFieldCampaignBehavior.SkipTutorialMission = true;
+
+            if (Config.SkipCultureStage)
+                SkipCultureStage(state);
         }
 
-        private void SkipCultureSelect(CharacterCreationState state)
+        internal void OnFaceGenStage(CharacterCreationState state)
+        {
+            if (Config.SkipFaceGenStage)
+                SkipFaceGenStage(state);
+        }
+
+        internal void OnGenericStage(CharacterCreationState state)
+        {
+            if (Config.SkipGenericStage)
+                SkipGenericStage(state);
+        }
+
+        internal void OnReviewStage(CharacterCreationState state) => SkipFinalStages(state);
+
+        private void SkipCultureStage(CharacterCreationState state)
         {
             Log.LogInformation("Skipping culture selection stage...");
 
             if (CharacterCreationContent.Instance.Culture is null)
             {
                 var culture = CharacterCreationContent.Instance.GetCultures().GetRandomElement();
+                Log.LogInformation($"Auto-selected player culture: {culture.Name}");
+
                 CharacterCreationContent.Instance.Culture = culture;
                 CharacterCreationContent.CultureOnCondition(state.CharacterCreation);
                 state.NextStage();
-
-                Log.LogInformation($"Auto-selected player culture: {culture.Name}");
             }
         }
 
-        private void SkipFaceGen(CharacterCreationState state)
+        private void SkipFaceGenStage(CharacterCreationState state)
         {
             Log.LogInformation("Skipping face generator stage...");
-
-            if (state.CurrentStage is CharacterCreationFaceGeneratorStage)
-                state.NextStage();
+            state.NextStage();
         }
 
-        private void SkipFinal(CharacterCreationState state)
+        private void SkipGenericStage(CharacterCreationState state)
         {
-            Log.LogTrace("Skipping rest of charaction creation stages...");
+            Log.LogInformation("Skipping generic stage...");
 
-            if (state.CurrentStage is CharacterCreationGenericStage)
+            var charCreation = state.CharacterCreation;
+
+            for (int i = 0; i < charCreation.CharacterCreationMenuCount; ++i)
             {
-                var charCreation = state.CharacterCreation;
+                var option = charCreation.GetCurrentMenuOptions(i).Where(o => o.OnCondition is null || o.OnCondition()).GetRandomElement();
 
-                for (int i = 0; i < charCreation.CharacterCreationMenuCount; ++i)
-                {
-                    var option = charCreation.GetCurrentMenuOptions(i).FirstOrDefault(o => o.OnCondition is null || o.OnCondition());
-
-                    if (option is not null)
-                        charCreation.RunConsequence(option, i, false);
-                }
-
-                state.NextStage();
+                if (option is not null)
+                    charCreation.RunConsequence(option, i, false);
             }
+
+            state.NextStage();
+        }
+
+        private void SkipFinalStages(CharacterCreationState state)
+        {
+            Log.LogInformation("Skipping rest of charaction creation stages...");
 
             if (state.CurrentStage is CharacterCreationReviewStage)
                 state.NextStage();
@@ -166,17 +160,59 @@ namespace QuickStart
             if (state.CurrentStage is CharacterCreationOptionsStage)
                 state.NextStage();
 
-            Log.LogTrace("Skipping tutorial phase...");
+            Log.LogInformation("Skipping tutorial phase...");
+
+            if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
+            {
+                AccessTools.Field(typeof(TrainingFieldCampaignBehavior), "_talkedWithBrotherForTheFirstTime").SetValue(behavior, true);
+                TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
+            }
+
+            DisableElderBrother(isFirst: false); // Doing it again at the end for good measure
+
             StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
-            _waitStage = WaitStage.None;
+
+            var startSettlement = Settlement.Find("town_EW2");
+
+            if (startSettlement is not null && GameStateManager.Current.ActiveState is MapState mapState)
+            {
+                MobileParty.MainParty.Position2D = startSettlement.GatePosition;
+                mapState.Handler.TeleportCameraToMainParty();
+            }
+
+            if (Config.PromptForClanName)
+            {
+                InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=JJiKk4ow}Select your family name: ", null).ToString(),
+                                                                       string.Empty,
+                                                                       true,
+                                                                       false,
+                                                                       GameTexts.FindText("str_done", null).ToString(),
+                                                                       null,
+                                                                       new Action<string>(OnChangeClanNameDone),
+                                                                       null,
+                                                                       false,
+                                                                       new Func<string, bool>(IsNewClanNameApplicable),
+                                                                       ""), false);
+            }
         }
 
-        enum WaitStage
+        private static bool IsNewClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
+
+        private static void OnChangeClanNameDone(string txt)
         {
-            None,
-            Culture,
-            FaceGen,
-            Generic,
+            var name = new TextObject(txt ?? string.Empty);
+            Clan.PlayerClan.InitializeClan(name, name, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
+        }
+
+        private void DisableElderBrother(bool isFirst = true)
+        {
+            var brother = (Hero)AccessTools.Property(typeof(StoryModeHeroes), "ElderBrother").GetValue(null);
+            
+            if (isFirst)
+                PartyBase.MainParty.MemberRoster.RemoveTroop(brother.CharacterObject, 1);
+            
+            brother.ChangeState(Hero.CharacterStates.Disabled);
+            brother.Clan = CampaignData.NeutralFaction;
         }
     }
 }

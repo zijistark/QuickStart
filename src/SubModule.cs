@@ -25,7 +25,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.0.0";
+        public static string Version => "1.0.0-beta1";
 
         public static string Name => typeof(SubModule).Namespace;
 

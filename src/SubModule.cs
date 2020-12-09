@@ -14,12 +14,12 @@ using StoryMode.CharacterCreationSystem;
 using StoryMode.StoryModeObjects;
 using StoryMode.StoryModePhases;
 
+using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
+using TaleWorlds.Localization;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
-using TaleWorlds.CampaignSystem;
-using TaleWorlds.Localization;
-using TaleWorlds.CampaignSystem.GameState;
 
 namespace QuickStart
 {

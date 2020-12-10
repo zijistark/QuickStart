@@ -4,6 +4,7 @@ using HarmonyLib;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog.Events;
 
 using System;
 using System.ComponentModel;
@@ -37,8 +38,7 @@ namespace QuickStart
         {
             base.OnSubModuleLoad();
             Instance = this;
-            this.AddSerilogLoggerProvider($"{Name}.log", new[] { $"{Name}.*" });
-            new Harmony(HarmonyDomain).PatchAll();
+            this.AddSerilogLoggerProvider($"{Name}.log", new[] { $"{Name}.*" }, config => config.MinimumLevel.Is(LogEventLevel.Verbose));
         }
 
         protected override void OnSubModuleUnloaded() => Log.LogInformation($"Unloaded {Name}!");
@@ -54,9 +54,12 @@ namespace QuickStart
                 Log = this.GetServiceProvider().GetRequiredService<ILogger<SubModule>>();
                 Log.LogInformation($"Loading {Name}...");
 
+                if (!Patches.CharacterCreationStatePatch.Apply(new Harmony(HarmonyDomain)))
+                    throw new Exception($"{nameof(Patches.CharacterCreationStatePatch)} failed to apply!");
+
                 if (McmSettings.Instance is { } settings)
                 {
-                    Log.LogInformation("MCM settings instance found.");
+                    Log.LogDebug("MCM settings instance found.");
 
                     // Copy current settings to master config
                     Config.CopyFrom(settings);
@@ -65,7 +68,7 @@ namespace QuickStart
                     settings.PropertyChanged += McmSettings_OnPropertyChanged;
                 }
                 else
-                    Log.LogInformation("MCM settings instance NOT found. Using defaults.");
+                    Log.LogDebug("MCM settings instance NOT found. Using defaults.");
 
                 Log.LogInformation($"Configuration:\n{Config.ToDebugString()}");
                 Log.LogInformation($"Loaded {Name}!");
@@ -90,7 +93,7 @@ namespace QuickStart
             if (Config.SkipCultureStage)
                 SkipCultureStage(state);
             else
-                Log.LogInformation("Culture selection stage is now under manual control.");
+                Log.LogTrace("Culture selection stage is now under manual control.");
         }
 
         internal void OnFaceGenStage(CharacterCreationState state)
@@ -98,7 +101,7 @@ namespace QuickStart
             if (Config.SkipFaceGenStage)
                 SkipFaceGenStage(state);
             else
-                Log.LogInformation("Face generator stage is now under manual control.");
+                Log.LogTrace("Face generator stage is now under manual control.");
         }
 
         internal void OnGenericStage(CharacterCreationState state)
@@ -106,19 +109,21 @@ namespace QuickStart
             if (Config.SkipGenericStage)
                 SkipGenericStage(state);
             else
-                Log.LogInformation("Generic stage is now under manual control.");
+                Log.LogTrace("Generic stage is now under manual control.");
         }
 
         internal void OnReviewStage(CharacterCreationState state) => SkipFinalStages(state);
 
+        internal void OnOptionsStage(CharacterCreationState state) => _ = state;
+
         private void SkipCultureStage(CharacterCreationState state)
         {
-            Log.LogInformation("Skipping culture selection stage...");
+            Log.LogTrace("Skipping culture selection stage...");
 
             if (CharacterCreationContent.Instance.Culture is null)
             {
                 var culture = CharacterCreationContent.Instance.GetCultures().GetRandomElement();
-                Log.LogInformation($"Auto-selected player culture: {culture.Name}");
+                Log.LogDebug($"Randomly-selected player culture: {culture.Name}");
 
                 CharacterCreationContent.Instance.Culture = culture;
                 CharacterCreationContent.CultureOnCondition(state.CharacterCreation);
@@ -128,7 +133,7 @@ namespace QuickStart
 
         private void SkipFaceGenStage(CharacterCreationState state)
         {
-            Log.LogInformation("Skipping face generator stage...");
+            Log.LogTrace("Skipping face generator stage...");
             state.NextStage();
             // MAYBE-TODO: Skipping this quickly seems to always result in the same bald man (haven't tried a woman),
             //             which is not the actual default for slider settings. It'd be nice to be able to use a
@@ -137,7 +142,7 @@ namespace QuickStart
 
         private void SkipGenericStage(CharacterCreationState state)
         {
-            Log.LogInformation("Skipping generic stage...");
+            Log.LogTrace("Skipping generic stage...");
 
             var charCreation = state.CharacterCreation;
 
@@ -156,17 +161,17 @@ namespace QuickStart
         {
             if (state.CurrentStage is CharacterCreationReviewStage)
             {
-                Log.LogInformation("Skipping review stage...");
+                Log.LogTrace("Skipping review stage...");
                 state.NextStage();
             }
 
             if (state.CurrentStage is CharacterCreationOptionsStage)
             {
-                Log.LogInformation("Skipping campaign options stage...");
+                Log.LogTrace("Skipping campaign options stage...");
                 state.NextStage();
             }
 
-            Log.LogInformation("Skipping tutorial phase...");
+            Log.LogTrace("Skipping tutorial phase...");
 
             if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
             {
@@ -180,7 +185,7 @@ namespace QuickStart
 
             if (GameStateManager.Current.ActiveState is not MapState)
             {
-                Log.LogError("Completed tutorial phase, but this did not result in a MapState! Canceling further automation features.");
+                Log.LogError("Completed tutorial phase, but this did not result in a MapState! Aborting.");
                 return;
             }
 
@@ -212,17 +217,32 @@ namespace QuickStart
 
                 if (settlement is not null)
                 {
-                    MobileParty.MainParty.Position2D = settlement.GatePosition;
-                    ((MapState)GameStateManager.Current.ActiveState).Handler.TeleportCameraToMainParty();
-                    break;
+                    TeleportPlayerToSettlementInternal(settlement);
+                    return;
                 }
             }
+
+            Log.LogDebug("Couldn't find one of predefined settlements for player teleportation. Choosing first available town...");
+            var backupSettlement = Settlement.All.FirstOrDefault(s => s.IsTown);
+
+            if (backupSettlement is null)
+                Log.LogInformation("No suitable town found on map. Skipping player teleportation.");
+            else
+                TeleportPlayerToSettlementInternal(backupSettlement);
+        }
+
+        private static void TeleportPlayerToSettlementInternal(Settlement settlement)
+        {
+            MobileParty.MainParty.Position2D = settlement.GatePosition;
+            ((MapState)GameStateManager.Current.ActiveState).Handler.TeleportCameraToMainParty();
+            Log.LogTrace($"Teleported player directly to the gates of {settlement.Name}");
         }
 
         private static void ChangeClanName(string? name)
         {
             var txtName = new TextObject(name ?? DefaultPlayerClanName);
             Clan.PlayerClan.InitializeClan(txtName, txtName, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
+            Log.LogTrace($"Set player clan name: {Clan.PlayerClan.Name}");
         }
 
         private static void PromptForClanName()
@@ -241,7 +261,8 @@ namespace QuickStart
 
         private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
 
-        private static void OpenBannerEditor() => Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
+        private static void OpenBannerEditor()
+            => Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
 
         /* Non-Public Data */
 

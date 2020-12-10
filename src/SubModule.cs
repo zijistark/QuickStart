@@ -236,8 +236,7 @@ namespace QuickStart
                                                                    new Action<string>(ChangeClanName),
                                                                    null,
                                                                    false,
-                                                                   new Func<string, bool>(IsClanNameApplicable),
-                                                                   ""), false);
+                                                                   new Func<string, bool>(IsClanNameApplicable)), false);
         }
 
         private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;

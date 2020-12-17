@@ -2,28 +2,34 @@
 {
     internal static class Config
     {
-        internal static bool SkipCultureStage { get; set; } = true;
-        internal static bool SkipFaceGenStage { get; set; } = true;
-        internal static bool SkipGenericStage { get; set; } = true;
+        internal static bool ShowCultureStage { get; set; } = false;
+        internal static bool ShowFaceGenStage { get; set; } = false;
+        internal static bool ShowGenericStage { get; set; } = false;
+        internal static bool DisableIntroVideo { get; set; } = true;
+        internal static bool PromptForPlayerName { get; set; } = false;
         internal static bool PromptForClanName { get; set; } = false;
         internal static bool OpenBannerEditor { get; set; } = false;
 
         internal static void CopyFrom(McmSettings settings)
         {
-            SkipCultureStage  = settings.SkipCultureStage;
-            SkipFaceGenStage  = settings.SkipFaceGenStage;
-            SkipGenericStage  = settings.SkipGenericStage;
-            PromptForClanName = settings.PromptForClanName;
-            OpenBannerEditor  = settings.OpenBannerEditor;
+            ShowCultureStage    = settings.ShowCultureStage;
+            ShowFaceGenStage    = settings.ShowFaceGenStage;
+            ShowGenericStage    = settings.ShowGenericStage;
+            DisableIntroVideo   = settings.DisableIntroVideo;
+            PromptForPlayerName = settings.PromptForPlayerName;
+            PromptForClanName   = settings.PromptForClanName;
+            OpenBannerEditor    = settings.OpenBannerEditor;
         }
 
         internal static string ToDebugString()
         {
-            return $"{nameof(SkipCultureStage)}  = {SkipCultureStage}\n" +
-                   $"{nameof(SkipFaceGenStage)}  = {SkipFaceGenStage}\n" +
-                   $"{nameof(SkipGenericStage)}  = {SkipGenericStage}\n" +
-                   $"{nameof(PromptForClanName)} = {PromptForClanName}\n" +
-                   $"{nameof(OpenBannerEditor)}  = {OpenBannerEditor}";
+            return $"{nameof(ShowCultureStage)}    = {ShowCultureStage}\n" +
+                   $"{nameof(ShowFaceGenStage)}    = {ShowFaceGenStage}\n" +
+                   $"{nameof(ShowGenericStage)}    = {ShowGenericStage}\n" +
+                   $"{nameof(DisableIntroVideo)}   = {DisableIntroVideo}\n" +
+                   $"{nameof(PromptForPlayerName)} = {PromptForPlayerName}\n" +
+                   $"{nameof(PromptForClanName)}   = {PromptForClanName}\n" +
+                   $"{nameof(OpenBannerEditor)}    = {OpenBannerEditor}";
         }
     }
 }

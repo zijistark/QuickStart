@@ -71,6 +71,13 @@ namespace QuickStart
                     Log.LogDebug("MCM settings instance NOT found. Using defaults.");
 
                 Log.LogInformation($"Configuration:\n{Config.ToDebugString()}");
+
+                if (Config.DisableIntroVideo)
+                {
+                    Log.LogTrace("Disabling intro video...");
+                    AccessTools.DeclaredField(typeof(Module), "_splashScreenPlayed")?.SetValue(Module.CurrentModule, true);
+                }
+
                 Log.LogInformation($"Loaded {Name}!");
                 InformationManager.DisplayMessage(new InformationMessage($"Loaded {DisplayName}", SignatureTextColor));
             }
@@ -90,7 +97,7 @@ namespace QuickStart
             DisableElderBrother();
             TrainingFieldCampaignBehavior.SkipTutorialMission = true;
 
-            if (Config.SkipCultureStage)
+            if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
             else
                 Log.LogTrace("Culture selection stage is now under manual control.");
@@ -98,7 +105,7 @@ namespace QuickStart
 
         internal void OnFaceGenStage(CharacterCreationState state)
         {
-            if (Config.SkipFaceGenStage)
+            if (!Config.ShowFaceGenStage)
                 SkipFaceGenStage(state);
             else
                 Log.LogTrace("Face generator stage is now under manual control.");
@@ -106,7 +113,7 @@ namespace QuickStart
 
         internal void OnGenericStage(CharacterCreationState state)
         {
-            if (Config.SkipGenericStage)
+            if (!Config.ShowGenericStage)
                 SkipGenericStage(state);
             else
                 Log.LogTrace("Generic stage is now under manual control.");
@@ -158,6 +165,8 @@ namespace QuickStart
 
         private void SkipFinalStages(CharacterCreationState state)
         {
+            ChangeClanName(null);
+
             if (state.CurrentStage is CharacterCreationReviewStage)
             {
                 Log.LogTrace("Skipping review stage...");
@@ -180,17 +189,18 @@ namespace QuickStart
 
             DisableElderBrother(isFirst: false); // Do it again at the end for good measure
             StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
-            ChangeClanName(null);
 
             if (GameStateManager.Current.ActiveState is not MapState)
             {
-                Log.LogError("Completed tutorial phase, but this did not result in a MapState! Aborting.");
+                Log.LogCritical("Completed tutorial phase, but this did not result in a MapState! Aborting.");
                 return;
             }
 
             TeleportPlayerToSettlement();
 
-            if (Config.PromptForClanName)
+            if (Config.PromptForPlayerName)
+                PromptForPlayerName();
+            else if (Config.PromptForClanName) // Exclusive here but not upon dismissal of the player name inquiry
                 PromptForClanName();
 
             if (Config.OpenBannerEditor)
@@ -237,11 +247,31 @@ namespace QuickStart
             Log.LogTrace($"Teleported player directly to the gates of {settlement.Name}");
         }
 
-        private static void ChangeClanName(string? name)
+        private static void PromptForPlayerName()
         {
-            var txtName = new TextObject(name ?? DefaultPlayerClanName);
-            Clan.PlayerClan.InitializeClan(txtName, txtName, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
-            Log.LogTrace($"Set player clan name: {Clan.PlayerClan.Name}");
+            InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("Select your player name: ").ToString(),
+                                                                   string.Empty,
+                                                                   true,
+                                                                   false,
+                                                                   GameTexts.FindText("str_done", null).ToString(),
+                                                                   null,
+                                                                   new Action<string>(ChangePlayerName),
+                                                                   null,
+                                                                   false,
+                                                                   new Func<string, bool>(IsPlayerNameApplicable)), false);
+        }
+
+        private static bool IsPlayerNameApplicable(string txt) => txt.Length <= 24 && txt.Length > 0;
+
+        private static void ChangePlayerName(string? name)
+        {
+            var txtName = new TextObject(name ?? DefaultPlayerName);
+            Hero.MainHero.Name = Hero.MainHero.FirstName = txtName;
+            Log.LogTrace($"Set player name: {Hero.MainHero.Name}");
+            InformationManager.DisplayMessage(new InformationMessage($"Set player name to: {Hero.MainHero.Name}", SignatureTextColor));
+
+            if (Config.PromptForClanName)
+                PromptForClanName();
         }
 
         private static void PromptForClanName()
@@ -260,6 +290,14 @@ namespace QuickStart
 
         private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
 
+        private static void ChangeClanName(string? name)
+        {
+            var txtName = new TextObject(name ?? DefaultPlayerClanName);
+            Clan.PlayerClan.InitializeClan(txtName, txtName, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
+            Log.LogTrace($"Set player clan name: {Clan.PlayerClan.Name}");
+            InformationManager.DisplayMessage(new InformationMessage($"Set player clan name to: {Clan.PlayerClan.Name}", SignatureTextColor));
+        }
+
         private static void OpenBannerEditor()
             => Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
 
@@ -268,6 +306,7 @@ namespace QuickStart
         private static readonly Color SignatureTextColor = Color.FromUint(0x00F16D26);
 
         private const string DefaultPlayerClanName = "Playerclan";
+        private const string DefaultPlayerName = "Player";
 
         private static readonly string[] StartSettlementsToTry = new[]
         {

@@ -2,8 +2,6 @@
 using MCM.Abstractions.Attributes.v2;
 using MCM.Abstractions.Settings.Base.Global;
 
-using System.ComponentModel;
-
 namespace QuickStart
 {
     internal class McmSettings : AttributeGlobalSettings<McmSettings>

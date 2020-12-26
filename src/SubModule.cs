@@ -26,11 +26,11 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.0.1-beta1";
+        public static string Version => "1.0.2-beta1";
 
         public static string Name => typeof(SubModule).Namespace;
 
-        public static string DisplayName => "Campaign QuickStart";
+        public static string DisplayName => Name;
 
         public static string HarmonyDomain => "com.zijistark.bannerlord." + Name.ToLower();
 

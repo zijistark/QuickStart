@@ -130,7 +130,7 @@ namespace QuickStart
 
         private const string KingdomId_Hint = "If either vassal or king start options were chosen in the previous settings, then"
             + " it's possible to specify the exact kingdom/faction ID here (e.g., empire_s). Else, leave it blank and a kingdom"
-            + " will be chosen according to your character's culture. Careful to use a correct faction ID. [ Default: <BLANK> ]";
+            + " will be chosen according to your character's culture. Careful to use a correct faction ID. [ Default: BLANK ]";
 
         private bool _vassalStart;
         private bool _kingStart;

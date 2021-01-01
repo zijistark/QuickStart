@@ -29,7 +29,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.0.1";
+        public static string Version => "1.1.0";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -214,7 +214,7 @@ namespace QuickStart
         {
             var kingdom = ChooseKingdom();
             var tookOverClan = Config.LandownerStart ? ChooseClanToTakeFiefsFrom(kingdom) : null;
-            var playerSettlements = TakeFiefsFromClan(tookOverClan);
+            TakeFiefsFromClan(tookOverClan);
             FinishKingdomSetup(kingdom);
 
             if (Config.PromptForPlayerName)
@@ -225,7 +225,7 @@ namespace QuickStart
             if (Config.OpenBannerEditor)
                 OpenBannerEditor();
             
-            var startTown = ChooseStartTown(kingdom, playerSettlements);
+            var startTown = ChooseStartTown(kingdom);
             TeleportPlayerToSettlement(startTown);
         }
 
@@ -301,23 +301,23 @@ namespace QuickStart
             return null;
         }
 
-        private static List<Settlement> TakeFiefsFromClan(Clan? tookOverClan)
+        private static void TakeFiefsFromClan(Clan? tookOverClan)
         {
             List<Settlement> settlementsTaken = new();
 
             if (tookOverClan is not null)
             {
-                foreach (var s in tookOverClan.Settlements)
+                foreach (var s in tookOverClan.Settlements.Where(s => s.IsTown || s.IsCastle).ToList())
                 {
                     ChangeOwnerOfSettlementAction.ApplyByDefault(Hero.MainHero, s);
                     settlementsTaken.Add(s);
-                    Log.LogTrace($"Player clan acquired settlement: {s.Name} ({s.StringId}).");
+                    Log.LogTrace($"Player acquired: {s.Name} ({s.StringId})");
                 }
 
                 Log.LogDebug($"Player clan acquired {settlementsTaken.Count} settlements from clan {tookOverClan.Name}.");
             }
 
-            var home = settlementsTaken.OrderBy(s => s.IsTown ? 1 : s.IsCastle ? 2 : 3).FirstOrDefault();
+            var home = settlementsTaken.OrderBy(s => s.IsTown ? 1 : 2).FirstOrDefault();
 
             if (home is not null)
             {
@@ -327,20 +327,15 @@ namespace QuickStart
                 foreach (var hero in Clan.PlayerClan.Heroes)
                     hero.BornSettlement = home;
             }
-
-            return settlementsTaken;
         }
 
         private static void FinishKingdomSetup(Kingdom? kingdom)
         {
-            if (kingdom is null)
+            if (kingdom is null || !(Config.VassalStart || Config.KingStart))
                 return;
 
-            if (Config.VassalStart || Config.KingStart)
-            {
-                GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, Hero.MainHero.Gold, true);
-                PartyBase.MainParty.ItemRoster.Clear();
-            }
+            GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, Hero.MainHero.Gold, true);
+            PartyBase.MainParty.ItemRoster.Clear();
 
             if (Config.VassalStart)
             {
@@ -381,7 +376,7 @@ namespace QuickStart
 
                 // Take over kingdom
                 ChangeKingdomAction.ApplyByJoinToKingdom(Clan.PlayerClan, kingdom, false);
-                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 500f);
+                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 800f);
                 kingdom.RulingClan = Clan.PlayerClan;
             }
         }
@@ -403,7 +398,7 @@ namespace QuickStart
             }
 
             var troopSeq = CharacterObject.All
-                .Where(c => (c.Occupation == Occupation.Soldier || c.Occupation == Occupation.Mercenary)
+                .Where(c => c.Occupation == Occupation.Soldier
                          && c.Tier >= minTier
                          && c.Tier <= maxTier);
 
@@ -430,24 +425,20 @@ namespace QuickStart
         {
             party ??= PartyBase.MainParty;
 
-            var troopSeq = CharacterObject.All
-                .Where(c => (c.Occupation == Occupation.Soldier || c.Occupation == Occupation.Mercenary) && c.Tier == tier);
+            var troopSeq = CharacterObject.All.Where(c => c.Occupation == Occupation.Soldier && c.Tier == tier);
 
             var troop = troopSeq.Where(c => c.Culture == party.Culture).GetRandomElement();
             troop ??= troopSeq.GetRandomElement();
 
-            if (troop is null)
-            {
+            if (troop is not null)
+                party.AddElementToMemberRoster(troop, amount, false);
+            else
                 Log.LogError($"Could not find troop type to add to party (tier: {tier}, culture: {party.Culture})!");
-                return;
-            }
+         }
 
-            party.AddElementToMemberRoster(troop, amount, false);
-        }
-
-        private static Settlement? ChooseStartTown(Kingdom? kingdom, List<Settlement> playerSettlements)
+        private static Settlement? ChooseStartTown(Kingdom? kingdom)
         {
-            Settlement? town = playerSettlements.Where(s => s.IsTown).GetRandomElement();
+            var town = Clan.PlayerClan.Settlements.Where(s => s.IsTown).GetRandomElement();
             town ??= kingdom?.Settlements.Where(s => s.IsTown).GetRandomElement();
             town ??= Settlement.All.Where(s => s.IsTown && s.Culture == Hero.MainHero.Culture).GetRandomElement();
             town ??= Settlement.All.Where(s => s.IsTown && s.OwnerClan.Culture == Hero.MainHero.Culture).GetRandomElement();

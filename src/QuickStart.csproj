@@ -1,13 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.0.1</Version>
+    <Version>1.1.1</Version>
     <ModuleName>QuickStart</ModuleName>
-    <GameFolder>$(BANNERLORD_GAME_DIR)</GameFolder>
     <TargetFramework>net472</TargetFramework>
     <Platforms>x64</Platforms>
     <LangVersion>9.0</LangVersion>
     <Nullable>enable</Nullable>
+    
+    <!--
+    <GameFolder>$(BANNERLORD_GAME_DIR)</GameFolder>
+    <GameFolder>$(BANNERLORD_STABLE_DIR)</GameFolder>
+    -->
+    <GameFolder>$(BANNERLORD_BETA_DIR)</GameFolder>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,7 +46,7 @@
     <PackageReference Include="Bannerlord.MCM" Version="4.1.2" />
     <PackageReference Include="Lib.Harmony" Version="2.0.4" IncludeAssets="compile" />
     <PackageReference Include="Bannerlord.ButterLib" Version="1.0.18" IncludeAssets="compile" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" PrivateAssets="All" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" IncludeAssets="compile" />
   </ItemGroup>
 
 </Project>

@@ -29,7 +29,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.0";
+        public static string Version => "1.1.1";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -342,7 +342,7 @@ namespace QuickStart
                 Log.LogTrace("Completing vassal start scenario setup...");
 
                 GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 10_000, true);
-                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 2, true);
+                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 2);
                 EquipHeroFromCavalryTroop(Hero.MainHero, 3, 4);
                 AddTroopsToParty(1, 12);
                 AddTroopsToParty(2, 7);
@@ -365,7 +365,7 @@ namespace QuickStart
                     PartyBase.MainParty.ItemRoster.AddToCounts(muleItem, 4);
 
                 GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 30_000, true);
-                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 20, true);
+                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 20);
                 EquipHeroFromCavalryTroop(Hero.MainHero, 5, 7);
                 AddTroopsToParty(1, 20);
                 AddTroopsToParty(2, 8);

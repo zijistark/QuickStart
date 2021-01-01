@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <ModuleName>QuickStart</ModuleName>
     <TargetFramework>net472</TargetFramework>
     <Platforms>x64</Platforms>
@@ -10,11 +10,9 @@
     
     <!--
     <GameFolder>$(BANNERLORD_GAME_DIR)</GameFolder>
-    -->
     <GameFolder>$(BANNERLORD_STABLE_DIR)</GameFolder>
-    <!--
-    <GameFolder>$(BANNERLORD_BETA_DIR)</GameFolder>
     -->
+    <GameFolder>$(BANNERLORD_BETA_DIR)</GameFolder>
   </PropertyGroup>
 
   <ItemGroup>

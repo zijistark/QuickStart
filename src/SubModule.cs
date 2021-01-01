@@ -21,6 +21,9 @@ using TaleWorlds.Core;
 using TaleWorlds.Localization;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
+using TaleWorlds.ObjectSystem;
+using System.Collections.Generic;
+using TaleWorlds.CampaignSystem.Actions;
 
 namespace QuickStart
 {
@@ -190,21 +193,10 @@ namespace QuickStart
             DisableElderBrother(isFirst: false); // Do it again at the end for good measure
             StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
 
-            if (GameStateManager.Current.ActiveState is not MapState)
-            {
+            if (GameStateManager.Current.ActiveState is MapState)
+                FinishSetup();
+            else
                 Log.LogCritical("Completed tutorial phase, but this did not result in a MapState! Aborting.");
-                return;
-            }
-
-            TeleportPlayerToSettlement();
-
-            if (Config.PromptForPlayerName)
-                PromptForPlayerName();
-            else if (Config.PromptForClanName) // Exclusive here but not upon dismissal of the player name inquiry
-                PromptForClanName();
-
-            if (Config.OpenBannerEditor)
-                OpenBannerEditor();
         }
 
         private static void DisableElderBrother(bool isFirst = true)
@@ -218,33 +210,259 @@ namespace QuickStart
             brother.Clan = CampaignData.NeutralFaction;
         }
 
-        private static void TeleportPlayerToSettlement()
+        private void FinishSetup()
         {
-            foreach (var stringId in StartSettlementsToTry)
-            {
-                var settlement = Settlement.Find(stringId);
 
-                if (settlement is not null)
-                {
-                    TeleportPlayerToSettlementInternal(settlement);
-                    return;
-                }
-            }
+            if (Config.PromptForPlayerName)
+                PromptForPlayerName();
+            else if (Config.PromptForClanName) // Exclusive here but not upon dismissal of the player name inquiry
+                PromptForClanName();
 
-            Log.LogDebug("Couldn't find one of predefined settlements for player teleportation. Choosing first available town...");
-            var backupSettlement = Settlement.All.FirstOrDefault(s => s.IsTown);
+            if (Config.OpenBannerEditor)
+                OpenBannerEditor();
 
-            if (backupSettlement is null)
-                Log.LogInformation("No suitable town found on map. Skipping player teleportation.");
-            else
-                TeleportPlayerToSettlementInternal(backupSettlement);
+            var kingdom = ChooseKingdom();
+            var tookOverClan = Config.LandownerStart ? ChooseClanToTakeFiefsFrom(kingdom) : null;
+            var playerSettlements = TakeFiefsFromClan(tookOverClan);
+            FinishKingdomSetup(kingdom);
+            
+            var startTown = ChooseStartTown(kingdom, playerSettlements);
+            TeleportPlayerToSettlement(startTown);
         }
 
-        private static void TeleportPlayerToSettlementInternal(Settlement settlement)
+        private static Kingdom? ChooseKingdom()
         {
+            Kingdom? kingdom;
+
+            if (!string.IsNullOrWhiteSpace(Config.KingdomId)
+                && (kingdom = MBObjectManager.Instance.GetObject<Kingdom>(Config.KingdomId)) != default)
+            {
+                return kingdom;
+            }
+
+            // Try to choose a kingdom with a culture match (optional) that has at least 1 town (optional) & 1 clan (required)
+            var kingdoms = Kingdom.All.Where(k => k.Clans.Count > 0 && !k.IsEliminated);
+
+            kingdom = kingdoms.Where(k => k.Culture == Hero.MainHero.Culture
+                                       && k.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+
+            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture && k.Fiefs.Any()).GetRandomElement();
+
+            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture).GetRandomElement();
+
+            // Else, just assign them a random qualifying kingdom
+            kingdom ??= kingdoms.GetRandomElement();
+            return kingdom;
+        }
+
+        private static Clan? ChooseClanToTakeFiefsFrom(Kingdom? kingdom)
+        {
+            if (kingdom is null)
+            {
+                var clan = Clan.All.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= Clan.All.Where(c => c.Fortifications.Any()).GetRandomElement();
+
+                if (clan is not null)
+                    Log.LogDebug($"No kingdom: selected clan {clan.Name} of {clan.MapFaction?.Name} from which to seize fiefs.");
+                else
+                    Log.LogDebug($"No kingdom: failed to find clan from which to seize fiefs!");
+
+                return clan;
+            }
+
+            if (Config.VassalStart)
+            {
+                var clan = kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fortifications.Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fortifications.Any()).GetRandomElement();
+
+                if (clan is not null)
+                    Log.LogDebug($"Vassal of {kingdom.Name}: selected clan {clan.Name} from which to seize fiefs.");
+                else
+                    Log.LogDebug($"Vassal of {kingdom.Name}: failed to find clan from which to seize fiefs!");
+
+                return clan;
+            }
+
+            if (Config.KingStart)
+            {
+                var clan = kingdom.RulingClan.Fortifications.Any() ? kingdom.RulingClan : null;
+                clan ??= kingdom.Clans.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fortifications.Any()).GetRandomElement();
+
+                if (clan is not null)
+                    Log.LogDebug($"King of {kingdom.Name}: selected clan {clan.Name} (ruling clan? {kingdom.RulingClan == clan}) from which to seize fiefs.");
+                else
+                    Log.LogDebug($"King of {kingdom.Name}: failed to find clan from which to seize fiefs!");
+
+                return clan;
+            }
+
+            return null;
+        }
+
+        private static List<Settlement> TakeFiefsFromClan(Clan? tookOverClan)
+        {
+            List<Settlement> settlementsTaken = new();
+
+            if (tookOverClan is not null)
+            {
+                foreach (var s in tookOverClan.Settlements)
+                {
+                    ChangeOwnerOfSettlementAction.ApplyByDefault(Hero.MainHero, s);
+                    settlementsTaken.Add(s);
+                    Log.LogTrace($"Player clan acquired settlement: {s.Name} ({s.StringId}).");
+                }
+
+                Log.LogDebug($"Player clan acquired {settlementsTaken.Count} settlements from clan {tookOverClan.Name}.");
+            }
+
+            var home = settlementsTaken.OrderByDescending(s => s.IsTown ? 3 : s.IsCastle ? 2 : 1).FirstOrDefault();
+
+            if (home is not null)
+            {
+                Log.LogTrace($"Updating player clan home settlement: {home.Name} ({home.StringId}).");
+                Clan.PlayerClan.UpdateHomeSettlement(home);
+
+                foreach (var hero in Clan.PlayerClan.Heroes)
+                    hero.BornSettlement = home;
+            }
+
+            return settlementsTaken;
+        }
+
+        private static void FinishKingdomSetup(Kingdom? kingdom)
+        {
+            if (kingdom is null)
+                return;
+
+            if (Config.VassalStart || Config.KingStart)
+            {
+                GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, Hero.MainHero.Gold, true);
+                PartyBase.MainParty.ItemRoster.Clear();
+            }
+
+            if (Config.VassalStart)
+            {
+                GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 10_000, true);
+                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 2, true);
+                EquipHeroFromCavalryTroop(Hero.MainHero, 3, 4);
+                AddTroopsToParty(1, 12);
+                AddTroopsToParty(2, 7);
+                AddTroopsToParty(3, 5);
+
+                // Swear fealty
+                CharacterRelationManager.SetHeroRelation(Hero.MainHero, kingdom.Ruler, 10);
+                ChangeKingdomAction.ApplyByJoinToKingdom(Clan.PlayerClan, kingdom, false);
+                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 50f);
+            }
+            else if (Config.KingStart)
+            {
+                ItemObject? muleItem;
+
+                if ((muleItem = MBObjectManager.Instance.GetObject<ItemObject>("mule")) is null)
+                    Log.LogDebug("Item 'mule' could not be found!");
+                else
+                    PartyBase.MainParty.ItemRoster.AddToCounts(muleItem, 4);
+
+                GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 30_000, true);
+                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 16, true);
+                EquipHeroFromCavalryTroop(Hero.MainHero, 5, 7);
+                AddTroopsToParty(1, 20);
+                AddTroopsToParty(2, 8);
+                AddTroopsToParty(3, 8);
+                AddTroopsToParty(4, 6);
+                AddTroopsToParty(5, 4);
+                AddTroopsToParty(6, 3);
+
+                // Take over kingdom
+                ChangeKingdomAction.ApplyByJoinToKingdom(Clan.PlayerClan, kingdom, false);
+                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 500f);
+                kingdom.RulingClan = Clan.PlayerClan;
+            }
+        }
+
+        private static void EquipHeroFromCavalryTroop(Hero hero, int minTier, int? maxTier = null)
+        {
+            if (maxTier is null)
+                maxTier = minTier;
+
+            // Find a high-tier cavalry-based soldier from which to template the hero's BattleEquipment,
+            // preferably with the same gender (though it usually doesn't matter too much in armor, it can),
+            // and of course preferably with the same culture as the hero.
+            static bool IsCavalryTroop(CharacterObject c)
+            {
+                return c.DefaultFormationClass == FormationClass.HeavyCavalry
+                    || c.DefaultFormationClass == FormationClass.Cavalry
+                    || c.DefaultFormationClass == FormationClass.HorseArcher
+                    || c.DefaultFormationClass == FormationClass.LightCavalry;
+            }
+
+            var troopSeq = CharacterObject.All
+                .Where(c => (c.Occupation == Occupation.Soldier || c.Occupation == Occupation.Mercenary)
+                         && c.Tier >= minTier
+                         && c.Tier <= maxTier);
+
+            var troop = troopSeq
+                .Where(c => IsCavalryTroop(c)
+                         && c.Culture == hero.Culture
+                         && c.IsFemale == hero.IsFemale).GetRandomElement();
+
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.Culture == hero.Culture).GetRandomElement();
+            troop ??= troopSeq.Where(c => c.Culture == hero.Culture && c.IsFemale == hero.IsFemale).GetRandomElement();
+            troop ??= troopSeq.Where(c => c.Culture == hero.Culture).GetRandomElement();
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.IsFemale == hero.IsFemale).GetRandomElement();
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c)).GetRandomElement();
+            troop ??= troopSeq.GetRandomElement();
+
+            if (troop?.BattleEquipments.GetRandomElement() is { } equip)
+                hero.BattleEquipment.FillFrom(equip);
+            else
+                Log.LogError($"Could not find cavalry-oriented equipment set for {hero.Name} "
+                    + $"(minTier: {minTier}, maxTier: {maxTier}, culture: {hero.Culture.Name})!");
+        }
+
+        private static void AddTroopsToParty(int tier, int amount, PartyBase? party = null)
+        {
+            party ??= PartyBase.MainParty;
+
+            var troopSeq = CharacterObject.All
+                .Where(c => (c.Occupation == Occupation.Soldier || c.Occupation == Occupation.Mercenary) && c.Tier == tier);
+
+            var troop = troopSeq.Where(c => c.Culture == party.Culture).GetRandomElement();
+            troop ??= troopSeq.GetRandomElement();
+
+            if (troop is null)
+            {
+                Log.LogError($"Could not find troop type to add to party (tier: {tier}, culture: {party.Culture})!");
+                return;
+            }
+
+            party.AddElementToMemberRoster(troop, amount, false);
+        }
+
+        private static Settlement? ChooseStartTown(Kingdom? kingdom, List<Settlement> playerSettlements)
+        {
+            Settlement? town = playerSettlements.Where(s => s.IsTown).GetRandomElement();
+            town ??= kingdom?.Settlements.Where(s => s.IsTown).GetRandomElement();
+            town ??= Settlement.All.Where(s => s.IsTown && s.Culture == Hero.MainHero.Culture).GetRandomElement();
+            town ??= Settlement.All.Where(s => s.IsTown && s.OwnerClan.Culture == Hero.MainHero.Culture).GetRandomElement();
+            town ??= Settlement.All.Where(s => s.IsTown).GetRandomElement();
+            return town;
+        }
+
+        private static void TeleportPlayerToSettlement(Settlement? settlement)
+        {
+            if (settlement is null)
+            {
+                Log.LogError("No town found on map. Skipping player starting position modification.");
+                return;
+            }
+
             MobileParty.MainParty.Position2D = settlement.GatePosition;
             ((MapState)GameStateManager.Current.ActiveState).Handler.TeleportCameraToMainParty();
-            Log.LogTrace($"Teleported player directly to the gates of {settlement.Name}");
+            Log.LogTrace($"Teleported player directly to the gates of {settlement.Name} ({settlement.StringId}).");
         }
 
         private static void PromptForPlayerName()
@@ -306,14 +524,7 @@ namespace QuickStart
         private static readonly Color SignatureTextColor = Color.FromUint(0x00F16D26);
 
         private const string DefaultPlayerClanName = "Playerclan";
-        private const string DefaultPlayerName = "Player";
-
-        private static readonly string[] StartSettlementsToTry = new[]
-        {
-            "town_EN1", // Epicrotea
-            "town_B1", // Marunath
-            "town_EW2", // Zeonica
-        };
+        private const string DefaultPlayerName = "Player";        
 
         private static ILogger Log { get; set; } = default!;
 

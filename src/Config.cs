@@ -38,9 +38,10 @@
                    $"{nameof(PromptForPlayerName)} = {PromptForPlayerName}\n" +
                    $"{nameof(PromptForClanName)}   = {PromptForClanName}\n" +
                    $"{nameof(OpenBannerEditor)}    = {OpenBannerEditor}\n" +
+                   $"{nameof(LandownerStart)}      = {LandownerStart}\n" +
                    $"{nameof(VassalStart)}         = {VassalStart}\n" +
                    $"{nameof(KingStart)}           = {KingStart}\n" +
-                   $"{nameof(KingdomId)}           = {KingdomId}";
+                   $"{nameof(KingdomId)}           = {(string.IsNullOrWhiteSpace(KingdomId) ? "<BLANK>" : KingdomId)}";
         }
     }
 }

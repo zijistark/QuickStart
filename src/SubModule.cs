@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Serilog.Events;
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 
@@ -16,14 +17,13 @@ using StoryMode.StoryModeObjects;
 using StoryMode.StoryModePhases;
 
 using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.Actions;
 using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
 using TaleWorlds.Localization;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
-using System.Collections.Generic;
-using TaleWorlds.CampaignSystem.Actions;
 
 namespace QuickStart
 {
@@ -212,6 +212,10 @@ namespace QuickStart
 
         private void FinishSetup()
         {
+            var kingdom = ChooseKingdom();
+            var tookOverClan = Config.LandownerStart ? ChooseClanToTakeFiefsFrom(kingdom) : null;
+            var playerSettlements = TakeFiefsFromClan(tookOverClan);
+            FinishKingdomSetup(kingdom);
 
             if (Config.PromptForPlayerName)
                 PromptForPlayerName();
@@ -220,11 +224,6 @@ namespace QuickStart
 
             if (Config.OpenBannerEditor)
                 OpenBannerEditor();
-
-            var kingdom = ChooseKingdom();
-            var tookOverClan = Config.LandownerStart ? ChooseClanToTakeFiefsFrom(kingdom) : null;
-            var playerSettlements = TakeFiefsFromClan(tookOverClan);
-            FinishKingdomSetup(kingdom);
             
             var startTown = ChooseStartTown(kingdom, playerSettlements);
             TeleportPlayerToSettlement(startTown);
@@ -265,7 +264,7 @@ namespace QuickStart
                 if (clan is not null)
                     Log.LogDebug($"No kingdom: selected clan {clan.Name} of {clan.MapFaction?.Name} from which to seize fiefs.");
                 else
-                    Log.LogDebug($"No kingdom: failed to find clan from which to seize fiefs!");
+                    Log.LogError($"No kingdom: failed to find clan from which to seize fiefs!");
 
                 return clan;
             }
@@ -280,7 +279,7 @@ namespace QuickStart
                 if (clan is not null)
                     Log.LogDebug($"Vassal of {kingdom.Name}: selected clan {clan.Name} from which to seize fiefs.");
                 else
-                    Log.LogDebug($"Vassal of {kingdom.Name}: failed to find clan from which to seize fiefs!");
+                    Log.LogError($"Vassal of {kingdom.Name}: failed to find clan from which to seize fiefs!");
 
                 return clan;
             }
@@ -294,7 +293,7 @@ namespace QuickStart
                 if (clan is not null)
                     Log.LogDebug($"King of {kingdom.Name}: selected clan {clan.Name} (ruling clan? {kingdom.RulingClan == clan}) from which to seize fiefs.");
                 else
-                    Log.LogDebug($"King of {kingdom.Name}: failed to find clan from which to seize fiefs!");
+                    Log.LogError($"King of {kingdom.Name}: failed to find clan from which to seize fiefs!");
 
                 return clan;
             }
@@ -318,7 +317,7 @@ namespace QuickStart
                 Log.LogDebug($"Player clan acquired {settlementsTaken.Count} settlements from clan {tookOverClan.Name}.");
             }
 
-            var home = settlementsTaken.OrderByDescending(s => s.IsTown ? 3 : s.IsCastle ? 2 : 1).FirstOrDefault();
+            var home = settlementsTaken.OrderBy(s => s.IsTown ? 1 : s.IsCastle ? 2 : 3).FirstOrDefault();
 
             if (home is not null)
             {
@@ -345,6 +344,8 @@ namespace QuickStart
 
             if (Config.VassalStart)
             {
+                Log.LogTrace("Completing vassal start scenario setup...");
+
                 GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 10_000, true);
                 PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 2, true);
                 EquipHeroFromCavalryTroop(Hero.MainHero, 3, 4);
@@ -359,6 +360,8 @@ namespace QuickStart
             }
             else if (Config.KingStart)
             {
+                Log.LogTrace("Completing king start scenario setup...");
+
                 ItemObject? muleItem;
 
                 if ((muleItem = MBObjectManager.Instance.GetObject<ItemObject>("mule")) is null)
@@ -367,7 +370,7 @@ namespace QuickStart
                     PartyBase.MainParty.ItemRoster.AddToCounts(muleItem, 4);
 
                 GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 30_000, true);
-                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 16, true);
+                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 20, true);
                 EquipHeroFromCavalryTroop(Hero.MainHero, 5, 7);
                 AddTroopsToParty(1, 20);
                 AddTroopsToParty(2, 8);
@@ -419,8 +422,8 @@ namespace QuickStart
             if (troop?.BattleEquipments.GetRandomElement() is { } equip)
                 hero.BattleEquipment.FillFrom(equip);
             else
-                Log.LogError($"Could not find cavalry-oriented equipment set for {hero.Name} "
-                    + $"(minTier: {minTier}, maxTier: {maxTier}, culture: {hero.Culture.Name})!");
+                Log.LogError($"Could not find battle equipment for {hero.Name} (minTier: {minTier}, "
+                    + $"maxTier: {maxTier}, culture: {hero.Culture.Name})!");
         }
 
         private static void AddTroopsToParty(int tier, int amount, PartyBase? party = null)

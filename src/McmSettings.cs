@@ -87,7 +87,6 @@ namespace QuickStart
             {
                 if (_vassalStart != value)
                 {
-
                     if (value && _kingStart)
                         KingStart = false;
 
@@ -127,7 +126,7 @@ namespace QuickStart
             + " first by explicit specification in the 'Kingdom ID' option and otherwise by culture. [ DEFAULT: OFF ]";
 
         private const string KingStart_Hint = "Start as the sovereign ruler of a kingdom. The chosen kingdom will be picked"
-            +" first by explicit specification in the 'Kingdom ID' option and otherwise by culture. [ DEFAULT: OFF ]";
+            + " first by explicit specification in the 'Kingdom ID' option and otherwise by culture. [ DEFAULT: OFF ]";
 
         private const string KingdomId_Hint = "If either vassal or king start options were chosen in the previous settings, then"
             + " it's possible to specify the exact kingdom/faction ID here (e.g., empire_s). Else, leave it blank and a kingdom"

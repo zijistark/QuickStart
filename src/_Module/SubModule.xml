@@ -14,8 +14,16 @@
     <DependedModule Id="SandBoxCore" />
     <DependedModule Id="Sandbox" />
     <DependedModule Id="StoryMode" />
-    <DependedModule Id="CustomBattle" />
   </DependedModules>
+  <DependedModuleMetadatas>
+    <!-- FIXME: We need to be able regex-substitute property names for, at least, our GameVersion into these tags, as
+                it's yet another thing blocking a clean, unified stable/beta branch on top of requiring extra work to
+                update. -->
+    <DependedModuleMetadata id="Bannerlord.Harmony" order="LoadBeforeThis" version="v2.0.4" />
+    <DependedModuleMetadata id="Bannerlord.ButterLib" order="LoadBeforeThis" version="v1.0.19" />
+    <DependedModuleMetadata id="Bannerlord.MBOptionScreen" order="LoadBeforeThis" version="v4.1.2" optional="true" />
+    <DependedModuleMetadata id="CustomBattle" order="LoadBeforeThis" version="e1.5.*" optional="true" />
+  </DependedModuleMetadatas>
   <SubModules>
     <SubModule>
       <Name value="$modulename$" />

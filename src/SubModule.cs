@@ -29,7 +29,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.1";
+        public static string Version => "1.1.2";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -334,56 +334,64 @@ namespace QuickStart
             if (kingdom is null || !(Config.VassalStart || Config.KingStart))
                 return;
 
-            GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, Hero.MainHero.Gold, true);
-            PartyBase.MainParty.ItemRoster.Clear();
+            var (c, h, p) = (Clan.PlayerClan, Hero.MainHero, PartyBase.MainParty);
+
+            GiveGoldAction.ApplyBetweenCharacters(h, null, h.Gold, true);
+            p.ItemRoster.Clear();
+
+            ItemObject? muleItem;
+
+            if ((muleItem = MBObjectManager.Instance.GetObject<ItemObject>("mule")) is null)
+                Log.LogDebug("Item 'mule' could not be found!");
 
             if (Config.VassalStart)
             {
                 Log.LogTrace("Completing vassal start scenario setup...");
 
-                GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 10_000, true);
-                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 2);
-                EquipHeroFromCavalryTroop(Hero.MainHero, 3, 4);
-                AddTroopsToParty(1, 12);
-                AddTroopsToParty(2, 7);
-                AddTroopsToParty(3, 5);
+                GiveGoldAction.ApplyBetweenCharacters(null, h, 10_000, true);
+                p.ItemRoster.AddToCounts(DefaultItems.Grain, 5);
+                
+                if (muleItem is not null)
+                    p.ItemRoster.AddToCounts(muleItem, 1);
+
+                EquipHeroFromCavalryTroop(h, 3, 4);
+                AddTroopsToParty(1, 12, p);
+                AddTroopsToParty(2, 7, p);
+                AddTroopsToParty(3, 5, p);
 
                 // Swear fealty
-                CharacterRelationManager.SetHeroRelation(Hero.MainHero, kingdom.Ruler, 10);
-                ChangeKingdomAction.ApplyByJoinToKingdom(Clan.PlayerClan, kingdom, false);
-                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 50f);
+                CharacterRelationManager.SetHeroRelation(h, kingdom.Ruler, 10);
+                ChangeKingdomAction.ApplyByJoinToKingdom(c, kingdom, false);
+                GainKingdomInfluenceAction.ApplyForJoiningFaction(h, 50f);
             }
             else if (Config.KingStart)
             {
                 Log.LogTrace("Completing king start scenario setup...");
 
-                ItemObject? muleItem;
+                GiveGoldAction.ApplyBetweenCharacters(null, h, 30_000, true);
+                p.ItemRoster.AddToCounts(DefaultItems.Grain, 20);
 
-                if ((muleItem = MBObjectManager.Instance.GetObject<ItemObject>("mule")) is null)
-                    Log.LogDebug("Item 'mule' could not be found!");
-                else
-                    PartyBase.MainParty.ItemRoster.AddToCounts(muleItem, 4);
+                if (muleItem is not null)
+                    p.ItemRoster.AddToCounts(muleItem, 4);
 
-                GiveGoldAction.ApplyBetweenCharacters(null, Hero.MainHero, 30_000, true);
-                PartyBase.MainParty.ItemRoster.AddToCounts(DefaultItems.Grain, 20);
-                EquipHeroFromCavalryTroop(Hero.MainHero, 5, 7);
-                AddTroopsToParty(1, 20);
-                AddTroopsToParty(2, 8);
-                AddTroopsToParty(3, 8);
-                AddTroopsToParty(4, 6);
-                AddTroopsToParty(5, 4);
-                AddTroopsToParty(6, 3);
+                EquipHeroFromCavalryTroop(h, 5, 7);
+                AddTroopsToParty(1, 20, p);
+                AddTroopsToParty(2, 8, p);
+                AddTroopsToParty(3, 8, p);
+                AddTroopsToParty(4, 6, p);
+                AddTroopsToParty(5, 4, p);
+                AddTroopsToParty(6, 3, p);
 
                 // Take over kingdom
-                ChangeKingdomAction.ApplyByJoinToKingdom(Clan.PlayerClan, kingdom, false);
-                GainKingdomInfluenceAction.ApplyForJoiningFaction(Hero.MainHero, 800f);
-                kingdom.RulingClan = Clan.PlayerClan;
+                ChangeKingdomAction.ApplyByJoinToKingdom(c, kingdom, false);
+                GainKingdomInfluenceAction.ApplyForJoiningFaction(h, 500f);
+                kingdom.RulingClan = c;
             }
         }
 
-        private static void EquipHeroFromCavalryTroop(Hero hero, int minTier, int? maxTier = null)
+        private static void EquipHeroFromCavalryTroop(Hero hero, int minTier, int maxTier = default)
         {
-            if (maxTier is null)
+            if (maxTier == default)
                 maxTier = minTier;
 
             // Find a high-tier cavalry-based soldier from which to template the hero's BattleEquipment,
@@ -421,10 +429,8 @@ namespace QuickStart
                     + $"maxTier: {maxTier}, culture: {hero.Culture.Name})!");
         }
 
-        private static void AddTroopsToParty(int tier, int amount, PartyBase? party = null)
+        private static void AddTroopsToParty(int tier, int amount, PartyBase party)
         {
-            party ??= PartyBase.MainParty;
-
             var troopSeq = CharacterObject.All.Where(c => c.Occupation == Occupation.Soldier && c.Tier == tier);
 
             var troop = troopSeq.Where(c => c.Culture == party.Culture).GetRandomElement();

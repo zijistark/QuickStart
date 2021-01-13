@@ -24,6 +24,7 @@ using TaleWorlds.Localization;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
+using Bannerlord.ButterLib.Logger.Extensions;
 
 namespace QuickStart
 {
@@ -168,8 +169,6 @@ namespace QuickStart
 
         private void SkipFinalStages(CharacterCreationState state)
         {
-            ChangeClanName(null);
-
             if (state.CurrentStage is CharacterCreationReviewStage)
             {
                 Log.LogTrace("Skipping review stage...");
@@ -182,6 +181,8 @@ namespace QuickStart
                 state.NextStage();
             }
 
+            ChangePlayerName();
+            ChangeClanName();
             Log.LogTrace("Skipping tutorial phase...");
 
             if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
@@ -233,10 +234,12 @@ namespace QuickStart
         {
             Kingdom? kingdom;
 
-            if (!string.IsNullOrWhiteSpace(Config.KingdomId)
-                && (kingdom = MBObjectManager.Instance.GetObject<Kingdom>(Config.KingdomId)) != default)
+            if (!string.IsNullOrWhiteSpace(Config.KingdomId))
             {
-                return kingdom;
+                if ((kingdom = MBObjectManager.Instance.GetObject<Kingdom>(Config.KingdomId)) != default)
+                    return kingdom;
+                else if (Config.VassalStart || Config.KingStart)
+                    Log.LogErrorAndDisplay($"Configured kingdom ID '{Config.KingdomId}' is invalid!");
             }
 
             // Try to choose a kingdom with a culture match (optional) that has at least 1 town (optional) & 1 clan (required)
@@ -258,8 +261,8 @@ namespace QuickStart
         {
             if (kingdom is null)
             {
-                var clan = Clan.All.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= Clan.All.Where(c => c.Fortifications.Any()).GetRandomElement();
+                var clan = Clan.All.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= Clan.All.Where(c => c.Fiefs.Any()).GetRandomElement();
 
                 if (clan is not null)
                     Log.LogDebug($"No kingdom: selected clan {clan.Name} of {clan.MapFaction?.Name} from which to seize fiefs.");
@@ -271,10 +274,10 @@ namespace QuickStart
 
             if (Config.VassalStart)
             {
-                var clan = kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fortifications.Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fortifications.Any()).GetRandomElement();
+                var clan = kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).GetRandomElement();
 
                 if (clan is not null)
                     Log.LogDebug($"Vassal of {kingdom.Name}: selected clan {clan.Name} from which to seize fiefs.");
@@ -286,9 +289,9 @@ namespace QuickStart
 
             if (Config.KingStart)
             {
-                var clan = kingdom.RulingClan.Fortifications.Any() ? kingdom.RulingClan : null;
-                clan ??= kingdom.Clans.Where(c => c.Fortifications.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fortifications.Any()).GetRandomElement();
+                var clan = kingdom.RulingClan.Fiefs.Any() ? kingdom.RulingClan : null;
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).GetRandomElement();
 
                 if (clan is not null)
                     Log.LogDebug($"King of {kingdom.Name}: selected clan {clan.Name} (ruling clan? {kingdom.RulingClan == clan}) from which to seize fiefs.");
@@ -481,12 +484,14 @@ namespace QuickStart
 
         private static bool IsPlayerNameApplicable(string txt) => txt.Length <= 24 && txt.Length > 0;
 
-        private static void ChangePlayerName(string? name)
+        private static void ChangePlayerName(string? name = null)
         {
-            var txtName = new TextObject(name ?? DefaultPlayerName);
-            Hero.MainHero.Name = Hero.MainHero.FirstName = txtName;
+            var txtName = new TextObject(name ?? Hero.MainHero.Name.ToString());
+            CharacterObject.PlayerCharacter.Name = Hero.MainHero.Name = Hero.MainHero.FirstName = txtName;
             Log.LogTrace($"Set player name: {Hero.MainHero.Name}");
-            InformationManager.DisplayMessage(new InformationMessage($"Set player name to: {Hero.MainHero.Name}", SignatureTextColor));
+
+            if (name is not null)
+                InformationManager.DisplayMessage(new InformationMessage($"Set player name: {Hero.MainHero.Name}", SignatureTextColor));
 
             if (Config.PromptForClanName)
                 PromptForClanName();
@@ -508,12 +513,14 @@ namespace QuickStart
 
         private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
 
-        private static void ChangeClanName(string? name)
+        private static void ChangeClanName(string? name = null)
         {
             var txtName = new TextObject(name ?? DefaultPlayerClanName);
             Clan.PlayerClan.InitializeClan(txtName, txtName, Clan.PlayerClan.Culture, Clan.PlayerClan.Banner);
             Log.LogTrace($"Set player clan name: {Clan.PlayerClan.Name}");
-            InformationManager.DisplayMessage(new InformationMessage($"Set player clan name to: {Clan.PlayerClan.Name}", SignatureTextColor));
+
+            if (name is not null)
+                InformationManager.DisplayMessage(new InformationMessage($"Set player clan name: {Clan.PlayerClan.Name}", SignatureTextColor));
         }
 
         private static void OpenBannerEditor()
@@ -524,7 +531,6 @@ namespace QuickStart
         private static readonly Color SignatureTextColor = Color.FromUint(0x00F16D26);
 
         private const string DefaultPlayerClanName = "Playerclan";
-        private const string DefaultPlayerName = "Player";        
 
         private static ILogger Log { get; set; } = default!;
 

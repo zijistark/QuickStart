@@ -30,8 +30,8 @@
 
   <!-- Game Versions for Stable and Beta -->
   <PropertyGroup>
-    <GameVersion Condition="$(IsStable)">1.5.5</GameVersion>
-    <GameVersion Condition="$(IsBeta)">1.5.6</GameVersion>
+    <GameVersion Condition="$(IsStable)">1.5.6</GameVersion>
+    <GameVersion Condition="$(IsBeta)">1.5.7</GameVersion>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -13,19 +13,12 @@
     <Configurations>Stable_Debug;Stable_Release;Beta_Debug;Beta_Release</Configurations>
   </PropertyGroup>
 
-  <!-- Versions of Major Dependencies -->
+  <!-- Versions of Major Dependencies (For Package References & SubModule.xml Substitution) -->
   <PropertyGroup>
-    <BuildResourcesVersion>1.0.0.32</BuildResourcesVersion>
+    <BuildResourcesVersion>1.0.0.33</BuildResourcesVersion>
     <ButterLibVersion>1.0.19</ButterLibVersion>
     <HarmonyVersion>2.0.4</HarmonyVersion>
     <MCMVersion>4.1.2</MCMVersion>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <IsStable>false</IsStable>
-    <IsStable Condition="$(Configuration.Contains('Stable'))">true</IsStable>
-    <IsBeta>false</IsBeta>
-    <IsBeta Condition="$(Configuration.Contains('Beta'))">true</IsBeta>
   </PropertyGroup>
 
   <!-- Game Versions for Stable and Beta -->
@@ -34,6 +27,7 @@
     <GameVersion Condition="$(IsBeta)">1.5.7</GameVersion>
   </PropertyGroup>
 
+  <!-- Game Folder(s) -->
   <PropertyGroup>
     <!--
     Bannerlord's Root Folder. Leave empty if you want to try autoresolution. Recommended setup is to set, as an
@@ -63,6 +57,14 @@
     <DefineConstants>$(DefineConstants);$(GameVersionConstant)</DefineConstants>
   </PropertyGroup>
 
+  <!-- Extra Substitution Variables to Use in SubModule.xml -->
+  <ItemGroup>
+    <SubModuleOverrides Include="MCMVersion">
+      <Regex>\$mcmversion\$</Regex>
+      <Replacement>$(MCMVersion)</Replacement>
+    </SubModuleOverrides>
+  </ItemGroup>
+
   <!-- NuGet References -->
   <ItemGroup>
     <PackageReference Include="Bannerlord.BuildResources" Version="$(BuildResourcesVersion)">
@@ -85,7 +87,8 @@
 
   <ItemGroup>
     <!-- Bannerlord Native Assemblies -->
-    <Reference Include="$(GameFolder)\bin\Win64_Shipping_Client\TaleWorlds*.dll">
+    <Reference Include="$(GameFolder)\bin\Win64_Shipping_Client\TaleWorlds*.dll"
+               Exclude="$(GameFolder)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
       <HintPath>%(Identity)</HintPath>
       <Private>False</Private>
     </Reference>

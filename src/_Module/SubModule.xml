@@ -3,6 +3,7 @@
   <Name value="$modulename$" />
   <Id value="$modulename$" />
   <Version value="v$version$" />
+  <Url value="https://www.nexusmods.com/mountandblade2bannerlord/mods/2524" />
   <Official value="false" />
   <DefaultModule value="false" />
   <SingleplayerModule value="true" />
@@ -16,13 +17,14 @@
     <DependedModule Id="StoryMode" />
   </DependedModules>
   <DependedModuleMetadatas>
-    <!-- FIXME: We need to be able regex-substitute property names for, at least, our GameVersion into these tags, as
-                it's yet another thing blocking a clean, unified stable/beta branch on top of requiring extra work to
-                update. -->
-    <DependedModuleMetadata id="Bannerlord.Harmony" order="LoadBeforeThis" version="v2.0.4" />
-    <DependedModuleMetadata id="Bannerlord.ButterLib" order="LoadBeforeThis" version="v1.0.19" />
-    <DependedModuleMetadata id="Bannerlord.MBOptionScreen" order="LoadBeforeThis" version="v4.1.2" optional="true" />
-    <DependedModuleMetadata id="CustomBattle" order="LoadBeforeThis" version="e1.5.*" optional="true" />
+    <DependedModuleMetadata id="Bannerlord.Harmony" order="LoadBeforeThis" version="v$harmonyversion$" />
+    <DependedModuleMetadata id="Bannerlord.ButterLib" order="LoadBeforeThis" version="v$butterlibversion$" />
+    <DependedModuleMetadata id="Bannerlord.MBOptionScreen" order="LoadBeforeThis" version="v$mcmversion$" optional="true" />
+    <DependedModuleMetadata id="Native" order="LoadBeforeThis" version="e$gameversion$.*" />
+    <DependedModuleMetadata id="SandBoxCore" order="LoadBeforeThis" version="e$gameversion$.*" />
+    <DependedModuleMetadata id="Sandbox" order="LoadBeforeThis" version="e$gameversion$.*" />
+    <DependedModuleMetadata id="StoryMode" order="LoadBeforeThis" version="e$gameversion$.*" />
+    <DependedModuleMetadata id="CustomBattle" order="LoadBeforeThis" version="e$gameversion$.*" optional="true" />
   </DependedModuleMetadatas>
   <SubModules>
     <SubModule>

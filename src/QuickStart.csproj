@@ -23,8 +23,8 @@
 
   <!-- Game Versions for Stable and Beta -->
   <PropertyGroup>
-    <GameVersion Condition="$(IsStable)">1.5.6</GameVersion>
-    <GameVersion Condition="$(IsBeta)">1.5.7</GameVersion>
+    <GameVersion Condition="$(IsStable) == 'true'">1.5.6</GameVersion>
+    <GameVersion Condition="$(IsBeta) == 'true'">1.5.7</GameVersion>
   </PropertyGroup>
 
   <!-- Game Folder(s) -->
@@ -35,8 +35,8 @@
     separate game folders for the stable and beta versions of the game, likewise set BANNERLORD_STABLE_DIR and
     BANNERLORD_BETA_DIR.
     -->
-    <GameFolder Condition="$(IsStable)">$(BANNERLORD_STABLE_DIR)</GameFolder>
-    <GameFolder Condition="$(IsBeta)">$(BANNERLORD_BETA_DIR)</GameFolder>
+    <GameFolder Condition="$(IsStable) == 'true'">$(BANNERLORD_STABLE_DIR)</GameFolder>
+    <GameFolder Condition="$(IsBeta) == 'true'">$(BANNERLORD_BETA_DIR)</GameFolder>
     <GameFolder Condition="$(GameFolder) == ''">$(BANNERLORD_GAME_DIR)</GameFolder>
   </PropertyGroup>
 

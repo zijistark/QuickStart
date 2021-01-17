@@ -1,4 +1,5 @@
 ﻿using Bannerlord.ButterLib.Common.Extensions;
+using Bannerlord.ButterLib.Logger.Extensions;
 
 using HarmonyLib;
 
@@ -24,7 +25,6 @@ using TaleWorlds.Localization;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
-using Bannerlord.ButterLib.Logger.Extensions;
 
 namespace QuickStart
 {

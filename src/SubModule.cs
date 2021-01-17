@@ -218,6 +218,9 @@ namespace QuickStart
             TakeFiefsFromClan(tookOverClan);
             FinishKingdomSetup(kingdom);
 
+            var startTown = ChooseStartTown(kingdom);
+            TeleportPlayerToSettlement(startTown); // Must do this before the ActiveState is not a MapState (e.g., BannerEditorState)
+
             if (Config.PromptForPlayerName)
                 PromptForPlayerName();
             else if (Config.PromptForClanName) // Exclusive here but not upon dismissal of the player name inquiry
@@ -225,9 +228,6 @@ namespace QuickStart
 
             if (Config.OpenBannerEditor)
                 OpenBannerEditor();
-            
-            var startTown = ChooseStartTown(kingdom);
-            TeleportPlayerToSettlement(startTown);
         }
 
         private static Kingdom? ChooseKingdom()

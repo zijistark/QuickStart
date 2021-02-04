@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using StoryMode.CharacterCreationSystem;
 
@@ -44,6 +45,7 @@ namespace QuickStart.Patches
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static void NextStagePostfix(CharacterCreationState __instance, int ____stageIndex, List<KeyValuePair<int, Type>> ____stages)
         {
             if (____stageIndex == ____stages.Count)

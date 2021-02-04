@@ -30,7 +30,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.2";
+        public static string Version => "1.1.3";
 
         public static string Name => typeof(SubModule).Namespace;
 

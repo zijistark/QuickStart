@@ -13,12 +13,12 @@ using System.ComponentModel;
 using System.Linq;
 
 using StoryMode.Behaviors;
-using StoryMode.CharacterCreationSystem;
 using StoryMode.StoryModeObjects;
 using StoryMode.StoryModePhases;
 
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
+using TaleWorlds.CampaignSystem.CharacterCreationContent;
 using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
 using TaleWorlds.Localization;
@@ -40,8 +40,8 @@ namespace QuickStart
 
         protected override void OnSubModuleLoad()
         {
-            base.OnSubModuleLoad();
             Instance = this;
+            base.OnSubModuleLoad();
             this.AddSerilogLoggerProvider($"{Name}.log", new[] { $"{Name}.*" }, config => config.MinimumLevel.Is(LogEventLevel.Verbose));
         }
 
@@ -99,7 +99,7 @@ namespace QuickStart
         internal void OnCultureStage(CharacterCreationState state)
         {
             DisableElderBrother();
-            TrainingFieldCampaignBehavior.SkipTutorialMission = true;
+            Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
 
             if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
@@ -127,6 +127,7 @@ namespace QuickStart
 
         internal void OnOptionsStage(CharacterCreationState state) => _ = state;
 
+#if STABLE
         private void SkipCultureStage(CharacterCreationState state)
         {
             Log.LogTrace("Skipping culture selection stage...");
@@ -141,6 +142,21 @@ namespace QuickStart
                 state.NextStage();
             }
         }
+#else
+        private void SkipCultureStage(CharacterCreationState state)
+        {
+            Log.LogTrace("Skipping culture selection stage...");
+
+            if (CharacterCreationContentBase.Instance.GetSelectedCulture() is null)
+            {
+                var culture = CharacterCreationContentBase.Instance.GetCultures().RandomPick();
+                Log.LogDebug($"Randomly-selected player culture: {culture.Name}");
+
+                CharacterCreationContentBase.Instance.SetSelectedCulture(culture, state.CharacterCreation);
+                state.NextStage();
+            }
+        }
+#endif
 
         private void SkipFaceGenStage(CharacterCreationState state)
         {
@@ -158,7 +174,7 @@ namespace QuickStart
 
             for (int i = 0; i < charCreation.CharacterCreationMenuCount; ++i)
             {
-                var option = charCreation.GetCurrentMenuOptions(i).Where(o => o.OnCondition is null || o.OnCondition()).GetRandomElement();
+                var option = charCreation.GetCurrentMenuOptions(i).Where(o => o.OnCondition is null || o.OnCondition()).RandomPick();
 
                 if (option is not null)
                     charCreation.RunConsequence(option, i, false);
@@ -246,14 +262,14 @@ namespace QuickStart
             var kingdoms = Kingdom.All.Where(k => k.Clans.Count > 0 && !k.IsEliminated);
 
             kingdom = kingdoms.Where(k => k.Culture == Hero.MainHero.Culture
-                                       && k.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
+                                       && k.Fiefs.Where(f => f.IsTown).Any()).RandomPick();
 
-            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture && k.Fiefs.Any()).GetRandomElement();
+            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture && k.Fiefs.Any()).RandomPick();
 
-            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture).GetRandomElement();
+            kingdom ??= kingdoms.Where(k => k.Culture == Hero.MainHero.Culture).RandomPick();
 
             // Else, just assign them a random qualifying kingdom
-            kingdom ??= kingdoms.GetRandomElement();
+            kingdom ??= kingdoms.RandomPick();
             return kingdom;
         }
 
@@ -261,8 +277,8 @@ namespace QuickStart
         {
             if (kingdom is null)
             {
-                var clan = Clan.All.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= Clan.All.Where(c => c.Fiefs.Any()).GetRandomElement();
+                var clan = Clan.All.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).RandomPick();
+                clan ??= Clan.All.Where(c => c.Fiefs.Any()).RandomPick();
 
                 if (clan is not null)
                     Log.LogDebug($"No kingdom: selected clan {clan.Name} of {clan.MapFaction?.Name} from which to seize fiefs.");
@@ -274,10 +290,10 @@ namespace QuickStart
 
             if (Config.VassalStart)
             {
-                var clan = kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).GetRandomElement();
+                var clan = kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Where(f => f.IsTown).Any()).RandomPick();
+                clan ??= kingdom.Clans.Where(c => c != kingdom.RulingClan && c.Fiefs.Any()).RandomPick();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).RandomPick();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).RandomPick();
 
                 if (clan is not null)
                     Log.LogDebug($"Vassal of {kingdom.Name}: selected clan {clan.Name} from which to seize fiefs.");
@@ -290,8 +306,8 @@ namespace QuickStart
             if (Config.KingStart)
             {
                 var clan = kingdom.RulingClan.Fiefs.Any() ? kingdom.RulingClan : null;
-                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).GetRandomElement();
-                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).GetRandomElement();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Where(f => f.IsTown).Any()).RandomPick();
+                clan ??= kingdom.Clans.Where(c => c.Fiefs.Any()).RandomPick();
 
                 if (clan is not null)
                     Log.LogDebug($"King of {kingdom.Name}: selected clan {clan.Name} (ruling clan? {kingdom.RulingClan == clan}) from which to seize fiefs.");
@@ -416,16 +432,16 @@ namespace QuickStart
             var troop = troopSeq
                 .Where(c => IsCavalryTroop(c)
                          && c.Culture == hero.Culture
-                         && c.IsFemale == hero.IsFemale).GetRandomElement();
+                         && c.IsFemale == hero.IsFemale).RandomPick();
 
-            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.Culture == hero.Culture).GetRandomElement();
-            troop ??= troopSeq.Where(c => c.Culture == hero.Culture && c.IsFemale == hero.IsFemale).GetRandomElement();
-            troop ??= troopSeq.Where(c => c.Culture == hero.Culture).GetRandomElement();
-            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.IsFemale == hero.IsFemale).GetRandomElement();
-            troop ??= troopSeq.Where(c => IsCavalryTroop(c)).GetRandomElement();
-            troop ??= troopSeq.GetRandomElement();
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.Culture == hero.Culture).RandomPick();
+            troop ??= troopSeq.Where(c => c.Culture == hero.Culture && c.IsFemale == hero.IsFemale).RandomPick();
+            troop ??= troopSeq.Where(c => c.Culture == hero.Culture).RandomPick();
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c) && c.IsFemale == hero.IsFemale).RandomPick();
+            troop ??= troopSeq.Where(c => IsCavalryTroop(c)).RandomPick();
+            troop ??= troopSeq.RandomPick();
 
-            if (troop?.BattleEquipments.GetRandomElement() is { } equip)
+            if (troop?.RandomBattleEquipment is Equipment equip)
                 hero.BattleEquipment.FillFrom(equip);
             else
                 Log.LogError($"Could not find battle equipment for {hero.Name} (minTier: {minTier}, "
@@ -436,8 +452,8 @@ namespace QuickStart
         {
             var troopSeq = CharacterObject.All.Where(c => c.Occupation == Occupation.Soldier && c.Tier == tier);
 
-            var troop = troopSeq.Where(c => c.Culture == party.Culture).GetRandomElement();
-            troop ??= troopSeq.GetRandomElement();
+            var troop = troopSeq.Where(c => c.Culture == party.Culture).RandomPick();
+            troop ??= troopSeq.RandomPick();
 
             if (troop is not null)
                 party.AddElementToMemberRoster(troop, amount, false);
@@ -447,11 +463,11 @@ namespace QuickStart
 
         private static Settlement? ChooseStartTown(Kingdom? kingdom)
         {
-            var town = Clan.PlayerClan.Settlements.Where(s => s.IsTown).GetRandomElement();
-            town ??= kingdom?.Settlements.Where(s => s.IsTown).GetRandomElement();
-            town ??= Settlement.All.Where(s => s.IsTown && s.Culture == Hero.MainHero.Culture).GetRandomElement();
-            town ??= Settlement.All.Where(s => s.IsTown && s.OwnerClan.Culture == Hero.MainHero.Culture).GetRandomElement();
-            town ??= Settlement.All.Where(s => s.IsTown).GetRandomElement();
+            var town = Clan.PlayerClan.Settlements.Where(s => s.IsTown).RandomPick();
+            town ??= kingdom?.Settlements.Where(s => s.IsTown).RandomPick();
+            town ??= Settlement.All.Where(s => s.IsTown && s.Culture == Hero.MainHero.Culture).RandomPick();
+            town ??= Settlement.All.Where(s => s.IsTown && s.OwnerClan.Culture == Hero.MainHero.Culture).RandomPick();
+            town ??= Settlement.All.Where(s => s.IsTown).RandomPick();
             return town;
         }
 

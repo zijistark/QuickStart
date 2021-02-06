@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using StoryMode.CharacterCreationSystem;
+using TaleWorlds.CampaignSystem.CharacterCreationContent;
 
 namespace QuickStart.Patches
 {

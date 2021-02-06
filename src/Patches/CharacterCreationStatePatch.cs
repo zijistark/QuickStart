@@ -11,7 +11,11 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
+#if STABLE
+using StoryMode.CharacterCreationSystem;
+#else
 using TaleWorlds.CampaignSystem.CharacterCreationContent;
+#endif
 
 namespace QuickStart.Patches
 {

@@ -18,7 +18,6 @@ using StoryMode.StoryModePhases;
 
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
-using TaleWorlds.CampaignSystem.CharacterCreationContent;
 using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
 using TaleWorlds.Localization;
@@ -26,11 +25,17 @@ using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
 
+#if STABLE
+using StoryMode.CharacterCreationSystem;
+#else
+using TaleWorlds.CampaignSystem.CharacterCreationContent;
+#endif
+
 namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.3";
+        public static string Version => "1.1.4";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -99,8 +104,12 @@ namespace QuickStart
         internal void OnCultureStage(CharacterCreationState state)
         {
             DisableElderBrother();
-            Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
 
+#if STABLE
+            TrainingFieldCampaignBehavior.SkipTutorialMission = true;
+#else
+            Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
+#endif
             if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
             else
@@ -127,11 +136,11 @@ namespace QuickStart
 
         internal void OnOptionsStage(CharacterCreationState state) => _ = state;
 
-#if STABLE
         private void SkipCultureStage(CharacterCreationState state)
         {
             Log.LogTrace("Skipping culture selection stage...");
 
+#if STABLE
             if (CharacterCreationContent.Instance.Culture is null)
             {
                 var culture = CharacterCreationContent.Instance.GetCultures().GetRandomElement();
@@ -141,12 +150,7 @@ namespace QuickStart
                 CharacterCreationContent.CultureOnCondition(state.CharacterCreation);
                 state.NextStage();
             }
-        }
 #else
-        private void SkipCultureStage(CharacterCreationState state)
-        {
-            Log.LogTrace("Skipping culture selection stage...");
-
             if (CharacterCreationContentBase.Instance.GetSelectedCulture() is null)
             {
                 var culture = CharacterCreationContentBase.Instance.GetCultures().RandomPick();
@@ -155,8 +159,8 @@ namespace QuickStart
                 CharacterCreationContentBase.Instance.SetSelectedCulture(culture, state.CharacterCreation);
                 state.NextStage();
             }
-        }
 #endif
+        }
 
         private void SkipFaceGenStage(CharacterCreationState state)
         {
@@ -441,7 +445,7 @@ namespace QuickStart
             troop ??= troopSeq.Where(c => IsCavalryTroop(c)).RandomPick();
             troop ??= troopSeq.RandomPick();
 
-            if (troop?.RandomBattleEquipment is Equipment equip)
+            if (troop?.BattleEquipments.RandomPick() is Equipment equip)
                 hero.BattleEquipment.FillFrom(equip);
             else
                 Log.LogError($"Could not find battle equipment for {hero.Name} (minTier: {minTier}, "
@@ -450,6 +454,12 @@ namespace QuickStart
 
         private static void AddTroopsToParty(int tier, int amount, PartyBase party)
         {
+            if (tier == 1)
+            {
+                party.AddElementToMemberRoster(party.Culture.BasicTroop, amount, false);
+                return;
+            }
+
             var troopSeq = CharacterObject.All.Where(c => c.Occupation == Occupation.Soldier && c.Tier == tier);
 
             var troop = troopSeq.Where(c => c.Culture == party.Culture).RandomPick();
@@ -506,11 +516,13 @@ namespace QuickStart
             CharacterObject.PlayerCharacter.Name = Hero.MainHero.Name = Hero.MainHero.FirstName = txtName;
             Log.LogTrace($"Set player name: {Hero.MainHero.Name}");
 
-            if (name is not null)
+            if (name is not null) // if name was deliberately set by the user...
+            {
                 InformationManager.DisplayMessage(new InformationMessage($"Set player name: {Hero.MainHero.Name}", SignatureTextColor));
 
-            if (Config.PromptForClanName)
-                PromptForClanName();
+                if (Config.PromptForClanName)
+                    PromptForClanName();
+            }
         }
 
         private static void PromptForClanName()

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.1.4</Version>
+    <Version>1.1.5</Version>
     <ModuleName>$(MSBuildProjectName)</ModuleName>
   </PropertyGroup>
   
@@ -23,8 +23,8 @@
 
   <!-- Game Versions for Stable and Beta -->
   <PropertyGroup>
-    <GameVersion Condition="$(IsStable) == 'true'">1.5.7</GameVersion>
-    <GameVersion Condition="$(IsBeta) == 'true'">1.5.8</GameVersion>
+    <GameVersion Condition="$(IsStable) == 'true'">1.5.8</GameVersion>
+    <GameVersion Condition="$(IsBeta) == 'true'">1.5.9</GameVersion>
   </PropertyGroup>
 
   <!-- Game Folder(s) -->

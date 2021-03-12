@@ -18,6 +18,7 @@ using StoryMode.StoryModePhases;
 
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Actions;
+using TaleWorlds.CampaignSystem.CharacterCreationContent;
 using TaleWorlds.CampaignSystem.GameState;
 using TaleWorlds.Core;
 using TaleWorlds.Localization;
@@ -25,17 +26,12 @@ using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
 
-#if STABLE
-using StoryMode.CharacterCreationSystem;
-#else
-using TaleWorlds.CampaignSystem.CharacterCreationContent;
-#endif
 
 namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.4";
+        public static string Version => "1.1.5";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -105,11 +101,8 @@ namespace QuickStart
         {
             DisableElderBrother();
 
-#if STABLE
-            TrainingFieldCampaignBehavior.SkipTutorialMission = true;
-#else
             Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
-#endif
+
             if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
             else
@@ -140,17 +133,6 @@ namespace QuickStart
         {
             Log.LogTrace("Skipping culture selection stage...");
 
-#if STABLE
-            if (CharacterCreationContent.Instance.Culture is null)
-            {
-                var culture = CharacterCreationContent.Instance.GetCultures().GetRandomElement();
-                Log.LogDebug($"Randomly-selected player culture: {culture.Name}");
-
-                CharacterCreationContent.Instance.Culture = culture;
-                CharacterCreationContent.CultureOnCondition(state.CharacterCreation);
-                state.NextStage();
-            }
-#else
             if (CharacterCreationContentBase.Instance.GetSelectedCulture() is null)
             {
                 var culture = CharacterCreationContentBase.Instance.GetCultures().RandomPick();
@@ -159,7 +141,6 @@ namespace QuickStart
                 CharacterCreationContentBase.Instance.SetSelectedCulture(culture, state.CharacterCreation);
                 state.NextStage();
             }
-#endif
         }
 
         private void SkipFaceGenStage(CharacterCreationState state)

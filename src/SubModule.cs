@@ -13,6 +13,7 @@ using System.ComponentModel;
 using System.Linq;
 
 using StoryMode.Behaviors;
+using StoryMode.CharacterCreationContent;
 using StoryMode.StoryModeObjects;
 using StoryMode.StoryModePhases;
 
@@ -26,12 +27,11 @@ using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.ObjectSystem;
 
-
 namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.5";
+        public static string Version => "1.2.0.0";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -48,6 +48,8 @@ namespace QuickStart
 
         protected override void OnSubModuleUnloaded() => Log.LogInformation($"Unloaded {Name}!");
 
+        public override void OnGameEnd(Game game) => _isSandbox = default;
+
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
         {
             base.OnBeforeInitialModuleScreenSetAsRoot();
@@ -59,8 +61,17 @@ namespace QuickStart
                 Log = this.GetServiceProvider().GetRequiredService<ILogger<SubModule>>();
                 Log.LogInformation($"Loading {Name}...");
 
-                if (!Patches.CharacterCreationStatePatch.Apply(new Harmony(HarmonyDomain)))
+                var harmony = new Harmony(HarmonyDomain);
+
+                if (!Patches.CharacterCreationStatePatch.Apply(harmony))
                     throw new Exception($"{nameof(Patches.CharacterCreationStatePatch)} failed to apply!");
+#if BETA
+                if (!Patches.StoryModeGameManagerPatch.Apply(harmony))
+                    throw new Exception($"{nameof(Patches.StoryModeGameManagerPatch)} failed to apply!");
+
+                if (!Patches.SandBoxGameManagerPatch.Apply(harmony))
+                    throw new Exception($"{nameof(Patches.SandBoxGameManagerPatch)} failed to apply!");
+#endif
 
                 if (McmSettings.Instance is { } settings)
                 {
@@ -99,9 +110,23 @@ namespace QuickStart
 
         internal void OnCultureStage(CharacterCreationState state)
         {
-            DisableElderBrother();
+            // Figure out whether this is a Sandbox or StoryMode
+            if (CharacterCreationContentBase.Instance is SandboxCharacterCreationContent)
+                _isSandbox = true;
+            else if (CharacterCreationContentBase.Instance is StoryModeCharacterCreationContent)
+                _isSandbox = false;
+            else
+            {
+                var msg = $"QuickStart: Unsupported type of CharacterCreationContent: {CharacterCreationContentBase.Instance.GetType().FullName}";
+                Log.LogCritical($"Fatal: {msg}");
+                throw new Exception(msg);
+            }
 
-            Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
+            if (!_isSandbox)
+            {
+                DisableElderBrother();
+                Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
+            }
 
             if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
@@ -186,14 +211,17 @@ namespace QuickStart
             ChangeClanName();
             Log.LogTrace("Skipping tutorial phase...");
 
-            if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
+            if (!_isSandbox)
             {
-                AccessTools.Field(typeof(TrainingFieldCampaignBehavior), "_talkedWithBrotherForTheFirstTime").SetValue(behavior, true);
-                TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
-            }
+                if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
+                {
+                    AccessTools.Field(typeof(TrainingFieldCampaignBehavior), "_talkedWithBrotherForTheFirstTime").SetValue(behavior, true);
+                    TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
+                }
 
-            DisableElderBrother(isFirst: false); // Do it again at the end for good measure
-            StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
+                DisableElderBrother(isFirst: false); // Do it again at the end for good measure
+                StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
+            }
 
             if (GameStateManager.Current.ActiveState is MapState)
                 FinishSetup();
@@ -203,7 +231,10 @@ namespace QuickStart
 
         private static void DisableElderBrother(bool isFirst = true)
         {
-            var brother = (Hero)AccessTools.Property(typeof(StoryModeHeroes), "ElderBrother").GetValue(null);
+            var brother = StoryModeHeroes.ElderBrother;
+
+            if (brother is null)
+                return;
 
             if (isFirst)
                 PartyBase.MainParty.MemberRoster.RemoveTroop(brother.CharacterObject, 1);
@@ -237,7 +268,7 @@ namespace QuickStart
 
             if (!string.IsNullOrWhiteSpace(Config.KingdomId))
             {
-                if ((kingdom = MBObjectManager.Instance.GetObject<Kingdom>(Config.KingdomId)) != default)
+                if ((kingdom = Campaign.Current.CampaignObjectManager.Find<Kingdom>(Config.KingdomId)) != default)
                     return kingdom;
                 else if (Config.VassalStart || Config.KingStart)
                     Log.LogErrorAndDisplay($"Configured kingdom ID '{Config.KingdomId}' is invalid!");
@@ -484,17 +515,14 @@ namespace QuickStart
                                                                    GameTexts.FindText("str_done", null).ToString(),
                                                                    null,
                                                                    new Action<string>(ChangePlayerName),
-                                                                   null,
-                                                                   false,
-                                                                   new Func<string, bool>(IsPlayerNameApplicable)), false);
+                                                                   null), false);
         }
-
-        private static bool IsPlayerNameApplicable(string txt) => txt.Length <= 24 && txt.Length > 0;
 
         private static void ChangePlayerName(string? name = null)
         {
             var txtName = new TextObject(name ?? Hero.MainHero.Name.ToString());
-            CharacterObject.PlayerCharacter.Name = Hero.MainHero.Name = Hero.MainHero.FirstName = txtName;
+            CharacterObject.PlayerCharacter.Name = txtName;
+            Hero.MainHero.SetName(txtName);
             Log.LogTrace($"Set player name: {Hero.MainHero.Name}");
 
             if (name is not null) // if name was deliberately set by the user...
@@ -515,12 +543,8 @@ namespace QuickStart
                                                                    GameTexts.FindText("str_done", null).ToString(),
                                                                    null,
                                                                    new Action<string>(ChangeClanName),
-                                                                   null,
-                                                                   false,
-                                                                   new Func<string, bool>(IsClanNameApplicable)), false);
+                                                                   null), false);
         }
-
-        private static bool IsClanNameApplicable(string txt) => txt.Length <= 50 && txt.Length > 0;
 
         private static void ChangeClanName(string? name = null)
         {
@@ -546,5 +570,6 @@ namespace QuickStart
         internal static SubModule Instance { get; private set; } = default!;
 
         private bool _hasLoaded;
+        private bool _isSandbox;
     }
 }

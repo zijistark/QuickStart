@@ -13,6 +13,7 @@ using System.ComponentModel;
 using System.Linq;
 
 using StoryMode.Behaviors;
+using StoryMode.CharacterCreationContent;
 using StoryMode.StoryModeObjects;
 using StoryMode.StoryModePhases;
 
@@ -31,7 +32,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.1.5";
+        public static string Version => "1.1.5.1";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -47,6 +48,8 @@ namespace QuickStart
         }
 
         protected override void OnSubModuleUnloaded() => Log.LogInformation($"Unloaded {Name}!");
+
+        public override void OnGameEnd(Game game) => _isSandbox = default;
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
         {
@@ -99,9 +102,23 @@ namespace QuickStart
 
         internal void OnCultureStage(CharacterCreationState state)
         {
-            DisableElderBrother();
+            // Figure out whether this is a Sandbox or StoryMode
+            if (CharacterCreationContentBase.Instance is SandboxCharacterCreationContent)
+                _isSandbox = true;
+            else if (CharacterCreationContentBase.Instance is StoryModeCharacterCreationContent)
+                _isSandbox = false;
+            else
+            {
+                var msg = $"{Name}: Unsupported type of CharacterCreationContent: {CharacterCreationContentBase.Instance.GetType().FullName}";
+                Log.LogCritical($"Fatal: {msg}");
+                throw new Exception(msg);
+            }
 
-            Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
+            if (!_isSandbox)
+            {
+                DisableElderBrother();
+                Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>().SkipTutorialMission = true;
+            }
 
             if (!Config.ShowCultureStage)
                 SkipCultureStage(state);
@@ -184,16 +201,20 @@ namespace QuickStart
 
             ChangePlayerName();
             ChangeClanName();
-            Log.LogTrace("Skipping tutorial phase...");
 
-            if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
+            if (!_isSandbox)
             {
-                AccessTools.Field(typeof(TrainingFieldCampaignBehavior), "_talkedWithBrotherForTheFirstTime").SetValue(behavior, true);
-                TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
-            }
+                Log.LogTrace("Skipping tutorial phase...");
 
-            DisableElderBrother(isFirst: false); // Do it again at the end for good measure
-            StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
+                if (Campaign.Current.GetCampaignBehavior<TrainingFieldCampaignBehavior>() is { } behavior)
+                {
+                    AccessTools.Field(typeof(TrainingFieldCampaignBehavior), "_talkedWithBrotherForTheFirstTime").SetValue(behavior, true);
+                    TutorialPhase.Instance.PlayerTalkedWithBrotherForTheFirstTime();
+                }
+
+                DisableElderBrother(isFirst: false); // Do it again at the end for good measure
+                StoryMode.StoryMode.Current.MainStoryLine.CompleteTutorialPhase(isSkipped: true);
+            }
 
             if (GameStateManager.Current.ActiveState is MapState)
                 FinishSetup();
@@ -204,6 +225,9 @@ namespace QuickStart
         private static void DisableElderBrother(bool isFirst = true)
         {
             var brother = (Hero)AccessTools.Property(typeof(StoryModeHeroes), "ElderBrother").GetValue(null);
+
+            if (brother is null)
+                return;
 
             if (isFirst)
                 PartyBase.MainParty.MemberRoster.RemoveTroop(brother.CharacterObject, 1);
@@ -237,7 +261,7 @@ namespace QuickStart
 
             if (!string.IsNullOrWhiteSpace(Config.KingdomId))
             {
-                if ((kingdom = MBObjectManager.Instance.GetObject<Kingdom>(Config.KingdomId)) != default)
+                if ((kingdom = Campaign.Current.CampaignObjectManager.Kingdoms.FirstOrDefault(k => k.StringId == Config.KingdomId)) != default)
                     return kingdom;
                 else if (Config.VassalStart || Config.KingStart)
                     Log.LogErrorAndDisplay($"Configured kingdom ID '{Config.KingdomId}' is invalid!");
@@ -546,5 +570,6 @@ namespace QuickStart
         internal static SubModule Instance { get; private set; } = default!;
 
         private bool _hasLoaded;
+        private bool _isSandbox;
     }
 }

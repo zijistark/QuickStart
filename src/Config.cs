@@ -22,7 +22,7 @@
             DisableIntroVideo = settings.DisableIntroVideo;
             PromptForPlayerName = settings.PromptForPlayerName;
             PromptForClanName = settings.PromptForClanName;
-            OpenBannerEditor = settings.OpenBannerEditor;
+            //OpenBannerEditor = settings.OpenBannerEditor;
             LandownerStart = settings.LandownerStart;
             VassalStart = settings.VassalStart;
             KingStart = settings.KingStart;

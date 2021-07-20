@@ -56,9 +56,15 @@ namespace QuickStart
         [SettingPropertyGroup("Other Startup Settings")]
         public bool PromptForClanName { get; set; } = Config.PromptForClanName;
 
+        /*
+
+        Current e1.5.10 code likes to force-open the banner editor anyway. Not in e1.6.0.
+
         [SettingPropertyBool("Auto-Open Banner Editor", HintText = OpenBannerEditor_Hint, RequireRestart = false, Order = 3)]
         [SettingPropertyGroup("Other Startup Settings")]
         public bool OpenBannerEditor { get; set; } = Config.OpenBannerEditor;
+
+        */
 
         private const string DisableIntroVideo_Hint = "Disable TaleWorlds's time-consuming intro video / logo sequence upon"
             + " game start. [ DEFAULT: ON ]";

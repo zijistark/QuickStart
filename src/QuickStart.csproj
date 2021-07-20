@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.1.5</Version>
+    <Version>1.1.5.1</Version>
     <ModuleName>$(MSBuildProjectName)</ModuleName>
   </PropertyGroup>
   
@@ -16,15 +16,15 @@
   <!-- Versions of Major Dependencies (For Package References & SubModule.xml Substitution) -->
   <PropertyGroup>
     <BuildResourcesVersion>1.0.0.33</BuildResourcesVersion>
-    <ButterLibVersion>1.0.22</ButterLibVersion>
-    <HarmonyVersion>2.0.4</HarmonyVersion>
+    <ButterLibVersion>1.0.24</ButterLibVersion>
+    <HarmonyVersion>2.1.0</HarmonyVersion>
     <MCMVersion>4.3.10</MCMVersion>
   </PropertyGroup>
 
   <!-- Game Versions for Stable and Beta -->
   <PropertyGroup>
-    <GameVersion Condition="$(IsStable) == 'true'">1.5.9</GameVersion>
-    <GameVersion Condition="$(IsBeta) == 'true'">1.5.10</GameVersion>
+    <GameVersion Condition="$(IsStable) == 'true'">1.5.10</GameVersion>
+    <GameVersion Condition="$(IsBeta) == 'true'">1.6.0</GameVersion>
   </PropertyGroup>
 
   <!-- Game Folder(s) -->

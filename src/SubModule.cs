@@ -31,7 +31,7 @@ namespace QuickStart
 {
     public sealed class SubModule : MBSubModuleBase
     {
-        public static string Version => "1.2.0.0";
+        public static string Version => "1.2.1.0";
 
         public static string Name => typeof(SubModule).Namespace;
 
@@ -65,13 +65,12 @@ namespace QuickStart
 
                 if (!Patches.CharacterCreationStatePatch.Apply(harmony))
                     throw new Exception($"{nameof(Patches.CharacterCreationStatePatch)} failed to apply!");
-#if BETA
+
                 if (!Patches.StoryModeGameManagerPatch.Apply(harmony))
                     throw new Exception($"{nameof(Patches.StoryModeGameManagerPatch)} failed to apply!");
 
                 if (!Patches.SandBoxGameManagerPatch.Apply(harmony))
                     throw new Exception($"{nameof(Patches.SandBoxGameManagerPatch)} failed to apply!");
-#endif
 
                 if (McmSettings.Instance is { } settings)
                 {
@@ -530,12 +529,15 @@ namespace QuickStart
                 InformationManager.DisplayMessage(new InformationMessage($"Set player name: {Hero.MainHero.Name}", SignatureTextColor));
 
                 if (Config.PromptForClanName)
-                    PromptForClanName();
+                    Instance.PromptForClanName();
             }
         }
 
-        private static void PromptForClanName()
+        private void PromptForClanName()
         {
+            if (_isSandbox)
+                return;
+
             InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=JJiKk4ow}Select your family name: ").ToString(),
                                                                    string.Empty,
                                                                    true,
@@ -556,8 +558,13 @@ namespace QuickStart
                 InformationManager.DisplayMessage(new InformationMessage($"Set player clan name: {Clan.PlayerClan.Name}", SignatureTextColor));
         }
 
-        private static void OpenBannerEditor()
-            => Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
+        private void OpenBannerEditor()
+        {
+            if (_isSandbox)
+                return;
+
+            Game.Current.GameStateManager.PushState(Game.Current.GameStateManager.CreateState<BannerEditorState>(), 0);
+        }
 
         /* Non-Public Data */
 

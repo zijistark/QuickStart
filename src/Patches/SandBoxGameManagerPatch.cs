@@ -49,13 +49,13 @@ namespace QuickStart.Patches
             return true;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool OnLoadFinishedPrefix(SandBoxGameManager __instance)
         {
             var isSaveGame = (bool)AccessTools.Field(typeof(SandBoxGameManager), "_loadingSavedGame").GetValue(__instance);
 
             if (!isSaveGame)
             {
+                Log.LogDebug($"Not loading save game, starting character creation...");
                 AccessTools.DeclaredProperty(typeof(MBGameManager), "IsLoaded").SetValue(__instance, true);
                 CharacterCreationState gameState = Game.Current.GameStateManager.CreateState<CharacterCreationState>(new object[]
                 {
